@@ -107,19 +107,23 @@ async def cmd_mylistings(message: Message) -> None:
     await message.answer("\n".join(lines))
 
 
-@router.message(Command("market"))
-async def cmd_market(message: Message) -> None:
+async def build_market_view() -> tuple[str, InlineKeyboardMarkup | None]:
     listings = await db.active_listings()
     if not listings:
-        await message.answer("Bozorda hozircha hech narsa yo'q.")
-        return
+        return "Bozorda hozircha hech narsa yo'q.", None
 
     lines = ["🛒 <b>BOZOR</b>", ""] + [listing_line(l) for l in listings]
     buttons = [
         [InlineKeyboardButton(text=f"🛒 #{l['listing_id']} sotib olish", callback_data=f"market:buy:{l['listing_id']}")]
         for l in listings
     ]
-    await message.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.message(Command("market"))
+async def cmd_market(message: Message) -> None:
+    text, kb = await build_market_view()
+    await message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("market:buy:"))

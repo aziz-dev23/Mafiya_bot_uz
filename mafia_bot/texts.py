@@ -64,13 +64,6 @@ ROLE_DESCRIPTIONS = {
     ),
 }
 
-WELCOME_PRIVATE = (
-    "Salom! Men Mafiya o'yini botiman 🎭\n\n"
-    "Meni guruhga qo'shing va guruhda <b>/mafia</b> buyrug'ini yuboring — "
-    "yangi o'yin uchun ro'yxat ochiladi.\n\n"
-    "O'yin davomida rolingiz va tungi harakatlar uchun tugmalar shu yerga "
-    "(shaxsiy xabarlarga) yuboriladi, shuning uchun menga /start bosishingiz kerak."
-)
 
 HELP_TEXT = (
     "<b>Mafiya o'yini boti — buyruqlar</b>\n\n"

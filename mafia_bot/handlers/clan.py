@@ -186,18 +186,21 @@ async def on_pay(callback: CallbackQuery, state: FSMContext) -> None:
         pass
 
 
-@router.message(Command("topclans"))
-async def cmd_topclans(message: Message) -> None:
+async def build_topclans_text() -> str:
     clans = await db.top_clans(10)
     if not clans:
-        await message.answer("Hozircha hech qanday klan yo'q.")
-        return
+        return "Hozircha hech qanday klan yo'q."
 
     lines = ["🏆 <b>TOP-10 Klanlar</b>", ""]
     for i, c in enumerate(clans, 1):
         level = clan_level(c["xp"])
         lines.append(f"{i}. <b>{c['name']}</b> [{c['tag']}] — {level}-daraja, {c['xp']} XP")
-    await message.answer("\n".join(lines))
+    return "\n".join(lines)
+
+
+@router.message(Command("topclans"))
+async def cmd_topclans(message: Message) -> None:
+    await message.answer(await build_topclans_text())
 
 
 @router.message(Command("cinvite"))

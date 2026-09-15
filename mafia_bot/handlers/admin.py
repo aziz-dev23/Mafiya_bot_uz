@@ -1,6 +1,7 @@
-from aiogram import Router
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
 from config import ADMIN_IDS
@@ -9,16 +10,17 @@ from economy import ITEMS
 router = Router(name="admin")
 
 
-@router.message(Command("profile"))
-async def cmd_profile(message: Message) -> None:
-    await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    user_row = await db.get_user(message.from_user.id)
-    clan_row = await db.get_user_clan(message.from_user.id)
-    inventory_rows = await db.get_inventory(message.from_user.id)
+async def build_profile_view(
+    user_id: int, full_name: str, username: str | None = None
+) -> tuple[str, InlineKeyboardMarkup]:
+    await db.ensure_user(user_id, full_name, username)
+    user_row = await db.get_user(user_id)
+    clan_row = await db.get_user_clan(user_id)
+    inventory_rows = await db.get_inventory(user_id)
 
     lines = [
-        f"👤 <b>{message.from_user.full_name}</b>",
-        f"🆔 ID: <code>{message.from_user.id}</code>",
+        f"👤 <b>{full_name}</b>",
+        f"🆔 ID: <code>{user_id}</code>",
         "",
         f"💵 Dollar: {user_row['dollars']}",
         f"💎 Olmos: {user_row['diamonds']}",
@@ -30,20 +32,60 @@ async def cmd_profile(message: Message) -> None:
         lines.append("🏰 Klan: yo'q")
 
     lines.append("")
-    lines.append("🎒 <b>Buyumlar:</b>")
-    if inventory_rows:
-        for row in inventory_rows:
-            item = ITEMS.get(row["item_key"])
-            if not item:
-                continue
-            state = "🟢" if row["enabled"] else "🔴"
-            lines.append(f"{item['emoji']} {item['name']}: {row['count']} ta {state}")
-    else:
-        lines.append("<i>(yo'q — /dokon orqali sotib oling)</i>")
+    lines.append("🎒 <b>Buyumlar</b> (bosib yoqing/o'chiring):")
+    if not inventory_rows:
+        lines.append("<i>(yo'q — Do'kon orqali sotib oling)</i>")
 
     lines.append("")
     lines.append(f"🎮 O'yinlar: {user_row['games']} | 🏆 G'alabalar: {user_row['wins']}")
-    await message.answer("\n".join(lines))
+
+    buttons = []
+    for row in inventory_rows:
+        item = ITEMS.get(row["item_key"])
+        if not item:
+            continue
+        state = "🟢" if row["enabled"] else "🔴"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{state} {item['emoji']} {item['name']}: {row['count']} ta",
+                    callback_data=f"toggleitem_profile:{row['item_key']}",
+                )
+            ]
+        )
+    buttons.append([InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="menu:back")])
+
+    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.message(Command("profile"))
+async def cmd_profile(message: Message) -> None:
+    text, kb = await build_profile_view(
+        message.from_user.id, message.from_user.full_name, message.from_user.username
+    )
+    await message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("toggleitem_profile:"))
+async def on_toggle_item_profile(callback: CallbackQuery) -> None:
+    key = callback.data.split(":", 1)[1]
+    rows = await db.get_inventory(callback.from_user.id)
+    row = next((r for r in rows if r["item_key"] == key), None)
+    if not row:
+        await callback.answer("Bu buyum sizda yo'q.", show_alert=True)
+        return
+
+    new_state = not bool(row["enabled"])
+    await db.set_item_enabled(callback.from_user.id, key, new_state)
+    await callback.answer("Yoqildi ✅" if new_state else "O'chirildi")
+
+    text, kb = await build_profile_view(
+        callback.from_user.id, callback.from_user.full_name, callback.from_user.username
+    )
+    try:
+        await callback.message.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest:
+        pass
 
 
 def _parse_target_and_amount(message: Message) -> tuple[int | None, int | None, str | None]:

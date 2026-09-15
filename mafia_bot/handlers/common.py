@@ -1,15 +1,15 @@
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 import db
-from texts import HELP_TEXT, WELCOME_PRIVATE
+from texts import HELP_TEXT
 
 router = Router(name="common")
 
 
 @router.message(CommandStart(), F.chat.type == "private")
-async def cmd_start_private(message: Message) -> None:
+async def cmd_start_private(message: Message, bot: Bot) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
 
     parts = (message.text or "").split(maxsplit=1)
@@ -21,7 +21,10 @@ async def cmd_start_private(message: Message) -> None:
         await show_clan_menu(message)
         return
 
-    await message.answer(WELCOME_PRIVATE)
+    from handlers.menu import MAIN_MENU_TEXT, build_main_menu_keyboard
+
+    me = await bot.get_me()
+    await message.answer(MAIN_MENU_TEXT, reply_markup=build_main_menu_keyboard(me.username))
 
 
 @router.message(Command("help"))

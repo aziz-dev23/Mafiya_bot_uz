@@ -10,7 +10,7 @@ from aiogram.types import BotCommand
 
 import db
 from config import BOT_TOKEN
-from handlers import admin, clan, common, day, items, lobby, market, night, shop
+from handlers import admin, clan, common, day, items, lobby, market, menu, night, shop
 
 
 async def main() -> None:
@@ -25,6 +25,7 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_router(common.router)
+    dp.include_router(menu.router)
     dp.include_router(clan.router)
     dp.include_router(shop.router)
     dp.include_router(market.router)
