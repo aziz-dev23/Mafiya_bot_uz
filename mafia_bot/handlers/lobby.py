@@ -120,8 +120,8 @@ async def cmd_stop(message: Message) -> None:
     if not game:
         await message.answer("Bu guruhda faol o'yin yo'q.")
         return
-    if message.from_user.id != game.host_id:
-        await message.answer("Faqat o'yinni boshlagan odam uni to'xtata oladi.")
+    if message.from_user.id not in game.players:
+        await message.answer("Faqat shu o'yindagi qatnashuvchilar uni to'xtata oladi.")
         return
     manager.remove_game(message.chat.id)
     await message.answer("🛑 O'yin to'xtatildi.")
@@ -199,8 +199,8 @@ async def on_cancel(callback: CallbackQuery) -> None:
     if not game:
         await callback.answer("O'yin topilmadi.")
         return
-    if callback.from_user.id != game.host_id:
-        await callback.answer("Faqat o'yinni boshlagan odam bekor qila oladi.", show_alert=True)
+    if callback.from_user.id not in game.players:
+        await callback.answer("Faqat shu ro'yxatdagi qatnashuvchilar bekor qila oladi.", show_alert=True)
         return
 
     manager.remove_game(game.chat_id)
