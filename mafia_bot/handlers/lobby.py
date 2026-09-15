@@ -25,7 +25,10 @@ def build_lobby_text(game: Game) -> str:
     for i, p in enumerate(game.players.values(), 1):
         lines.append(f"{i}. {p.full_name}")
     lines.append("")
-    lines.append("Qo'shilish uchun pastdagi tugmani bosing 👇")
+    lines.append(
+        f"Qo'shilish uchun pastdagi tugmani bosing 👇\nKamida {MIN_PLAYERS} kishi bo'lsa, "
+        "istalgan qatnashuvchi \"▶️ Boshlash\"ni bosishi mumkin."
+    )
     return "\n".join(lines)
 
 
@@ -163,8 +166,8 @@ async def on_start(callback: CallbackQuery, bot: Bot) -> None:
     if not game or game.state != GameState.LOBBY:
         await callback.answer("Ro'yxat topilmadi.", show_alert=True)
         return
-    if callback.from_user.id != game.host_id:
-        await callback.answer("Faqat o'yinni boshlagan odam uni ishga tushira oladi.", show_alert=True)
+    if callback.from_user.id not in game.players:
+        await callback.answer("Avval ro'yxatga qo'shilishingiz kerak.", show_alert=True)
         return
     if len(game.players) < MIN_PLAYERS:
         await callback.answer(f"Kamida {MIN_PLAYERS} o'yinchi kerak.", show_alert=True)
