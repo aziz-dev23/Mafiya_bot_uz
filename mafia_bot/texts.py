@@ -2,8 +2,14 @@ from game.models import Role
 
 ROLE_NAMES = {
     Role.MAFIA: "🔪 Mafiya",
+    Role.DON: "🎩 Don",
+    Role.KILLER: "🔪 Qotil",
+    Role.HITMAN: "🥷 Yollanma qotil",
     Role.DOCTOR: "💊 Doktor",
     Role.DETECTIVE: "🕵️ Komissar",
+    Role.POISONER: "💊 Kezuvchi",
+    Role.WANDERER: "🚶 Daydi",
+    Role.MINER: "⛏ Konchi",
     Role.CIVILIAN: "👤 Tinch aholi",
 }
 
@@ -13,6 +19,22 @@ ROLE_DESCRIPTIONS = {
         "shahar aholisidan birini yo'q qilasiz.\nMaqsad: tinch aholi sonini "
         "mafiyaga teng yoki undan kam qilib qo'yish."
     ),
+    Role.DON: (
+        "Siz — Mafiyaning <b>Doni</b>siz. Sheriklaringiz bilan birga har kecha "
+        "birovni yo'q qilasiz. Bundan tashqari, o'yin davomida <b>bir marta</b> "
+        "kimningdir Komissar ekanini aniqlashga urinishingiz mumkin."
+    ),
+    Role.KILLER: (
+        "Siz — mustaqil <b>Qotil</b>siz. Hech kim bilan hamkorlik qilmaysiz. "
+        "Har kecha o'zingiz xohlagan birovni yo'q qilasiz.\nAgar oxirigacha "
+        "<b>yolg'iz qolib ketsangiz</b> — yakka o'zingiz g'alaba qilasiz!"
+    ),
+    Role.HITMAN: (
+        "Siz — <b>Yollanma qotil</b>siz. Sizga maxfiy bitta 'buyurtma' "
+        "(nishon) berilgan — profilingizni tekshiring. Har kecha istagan "
+        "birovni o'ldirishingiz mumkin. Aynan buyurtma nishonini o'ldirsangiz "
+        "— katta pul bonusi olasiz."
+    ),
     Role.DOCTOR: (
         "Siz — <b>Doktor</b>siz. Har kecha bitta odamni (o'zingizni ham) "
         "mafiyaning hujumidan himoya qilishingiz mumkin."
@@ -20,6 +42,21 @@ ROLE_DESCRIPTIONS = {
     Role.DETECTIVE: (
         "Siz — <b>Komissar</b>siz. Har kecha bitta odamni tekshirib, uning "
         "mafiya ekan-emasligini bilib olasiz."
+    ),
+    Role.POISONER: (
+        "Siz — <b>Kezuvchi</b>siz. Har kecha birovga yashirincha 'dori' "
+        "berasiz. Agar u himoyalanmagan bo'lsa — keyingi tunning boshida "
+        "halok bo'ladi."
+    ),
+    Role.WANDERER: (
+        "Siz — <b>Daydi</b>siz. Har kecha kimningdir oldiga borasiz. Agar "
+        "o'sha kishi aynan shu kecha o'ldirilsa — ertasi kuni bundan xabar "
+        "topasiz."
+    ),
+    Role.MINER: (
+        "Siz — <b>Konchi</b>siz. Maxsus harakatingiz yo'q, lekin har kecha "
+        "ozgina ehtimol bilan tasodifan 'sirg'anib' halok bo'lish xavfingiz "
+        "bor."
     ),
     Role.CIVILIAN: (
         "Siz — <b>Tinch aholi</b>siz. Maxsus qobiliyatingiz yo'q. Kunduzi "

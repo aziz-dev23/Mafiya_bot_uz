@@ -5,14 +5,21 @@ from enum import Enum
 
 class Role(str, Enum):
     MAFIA = "mafia"
+    DON = "don"
+    KILLER = "killer"
+    HITMAN = "hitman"
     DOCTOR = "doctor"
     DETECTIVE = "detective"
+    POISONER = "poisoner"
+    WANDERER = "wanderer"
+    MINER = "miner"
     CIVILIAN = "civilian"
 
 
 class GameState(str, Enum):
     LOBBY = "lobby"
     NIGHT = "night"
+    DAWN = "dawn"
     DAY_DISCUSSION = "day_discussion"
     DAY_VOTING = "day_voting"
     FINISHED = "finished"
@@ -27,6 +34,7 @@ class Player:
     alive: bool = True
     clan_tag: str | None = None
     items: dict[str, int] = field(default_factory=dict)
+    contract_target: int | None = None
 
 
 @dataclass
@@ -51,6 +59,27 @@ class Game:
     night_event: "asyncio.Event | None" = None
     mafia_rifle_users: set[int] = field(default_factory=set)
     detective_correct: bool = False
+
+    # Bosqich 2: yangi mustaqil/maxsus rollar
+    don_check_used: bool = False
+    night_killer_needed: bool = False
+    killer_acted: bool = False
+    killer_target: int | None = None
+    night_hitman_needed: bool = False
+    hitman_acted: bool = False
+    hitman_target: int | None = None
+    night_poisoner_needed: bool = False
+    poisoner_acted: bool = False
+    night_wanderer_needed: bool = False
+    wanderer_acted: bool = False
+    wanderer_target: int | None = None
+    pending_poison: dict[int, int] = field(default_factory=dict)
+
+    # dawn phase state (Geroy buyumi)
+    dawn_event: "asyncio.Event | None" = None
+    dawn_needed: int = 0
+    dawn_acted: set[int] = field(default_factory=set)
+    dawn_shots: dict[int, int] = field(default_factory=dict)
 
     # day phase state
     day_votes: dict[int, int | None] = field(default_factory=dict)

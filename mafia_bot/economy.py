@@ -36,15 +36,28 @@ DOLLARS_WIN_ALIVE = 1000
 DOLLARS_WIN_DEAD = 400
 DOLLARS_LOSE = 150
 DETECTIVE_BONUS_DOLLARS = 200
+KILLER_SOLO_WIN_DOLLARS = 5000
+HITMAN_CONTRACT_BONUS_DOLLARS = 2000
+MINER_SLIP_CHANCE = 0.20
 
-# Bosqich 1 buyumlari — hozircha faqat Mafiya/Doktor/Komissar/Tinch aholi bilan ishlaydiganlar.
+# Bosqich 1 buyumlari — Mafiya/Doktor/Komissar/Tinch aholi bilan ishlaydiganlar.
 ITEMS = {
     "shield": {"name": "Himoya", "emoji": "🛡", "price": 100, "currency": "dollar"},
     "fake_doc": {"name": "Soxta hujjat", "emoji": "📁", "price": 190, "currency": "dollar"},
     "vote_shield": {"name": "Ovozdan himoya", "emoji": "⚖️", "price": 1, "currency": "diamond"},
     "rifle": {"name": "Miltiq", "emoji": "🔫", "price": 1, "currency": "diamond"},
     "mirror": {"name": "Sehrli oyna", "emoji": "🔮", "price": 1000, "currency": "diamond"},
+    # Bosqich 2 buyumlari — yangi rollarga (Qotil/Yollanma qotil/Kezuvchi/Daydi/Konchi) bog'liq.
+    "killer_shield": {"name": "Qotildan himoya", "emoji": "⛑", "price": 2, "currency": "diamond"},
+    "poison_shield": {"name": "Doridan himoya", "emoji": "💊", "price": 100, "currency": "dollar"},
+    "mask": {"name": "Maska", "emoji": "🎭", "price": 100, "currency": "dollar"},
+    "miner_shield": {"name": "Sirpanishdan himoya", "emoji": "🪤", "price": 300, "currency": "dollar"},
+    "hero_shot": {"name": "Geroy", "emoji": "🥷", "price": 90, "currency": "diamond"},
+    "hero_immunity": {"name": "Geroydan himoya", "emoji": "🔰", "price": 5, "currency": "diamond"},
 }
+
+# Bir o'yin ichida cheksiz marta ishlaydigan (sarflanmaydigan) buyumlar.
+UNLIMITED_ITEMS = {"killer_shield"}
 
 CURRENCY_COLUMN = {"dollar": "dollars", "diamond": "diamonds", "coin": "coins"}
 CURRENCY_EMOJI = {"dollar": "💵", "diamond": "💎", "coin": "🪙"}
@@ -85,10 +98,30 @@ def clan_bonus_pct(level: int) -> int:
     return LEVEL_BONUS_PCT.get(level, LEVEL_BONUS_PCT[5])
 
 
+MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON)
+
+
+def _did_win(role: Role, winner: str) -> bool:
+    if winner == "killer":
+        return role == Role.KILLER
+    if winner == "mafia":
+        return role in MAFIA_TEAM_ROLES
+    # town — Yollanma qotil alohida g'alaba sharti yo'q, tomon natijasiga qo'shiladi
+    return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
+
+
 async def payout_game_results(game: Game, winner: str) -> list[str]:
     lines: list[str] = []
     for p in game.players.values():
-        won = (winner == "mafia" and p.role == Role.MAFIA) or (winner == "town" and p.role != Role.MAFIA)
+        won = _did_win(p.role, winner)
+
+        if winner == "killer" and p.role == Role.KILLER:
+            total = KILLER_SOLO_WIN_DOLLARS
+            await db.add_balance(p.user_id, dollars=total)
+            await db.record_game_result(p.user_id, won)
+            lines.append(f"• {p.full_name}: +{total}💵 (🔪 yakka g'alaba!)")
+            continue
+
         base = (DOLLARS_WIN_ALIVE if p.alive else DOLLARS_WIN_DEAD) if won else DOLLARS_LOSE
 
         bonus_pct = 0

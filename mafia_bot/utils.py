@@ -29,6 +29,10 @@ def build_mafia_kill_keyboard(game: Game, mafia_user_id: int, exclude_ids: set[i
     return kb
 
 
+def build_don_check_keyboard(game: Game, exclude_ids: set[int]) -> InlineKeyboardMarkup:
+    return build_target_keyboard(game, exclude_ids, "don_check")
+
+
 def build_vote_keyboard(game: Game) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text=p.full_name, callback_data=f"vote:{p.user_id}")]
