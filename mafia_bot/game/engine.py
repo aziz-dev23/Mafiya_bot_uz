@@ -2,9 +2,11 @@ import asyncio
 import logging
 import random
 from collections import Counter
+from pathlib import Path
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.types import FSInputFile
 
 import db
 from config import DAWN_DURATION, DAY_DISCUSSION_DURATION, NIGHT_DURATION, VOTE_DURATION
@@ -25,6 +27,22 @@ from .models import Game, GameState, Role
 logger = logging.getLogger(__name__)
 
 MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON)
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+DAY_IMAGE_PATH = ASSETS_DIR / "day.jpg"
+NIGHT_IMAGE_PATH = ASSETS_DIR / "night.jpg"
+_PHASE_IMAGE_CACHE: dict[str, str] = {}
+
+
+async def _send_phase_image(bot: Bot, chat_id: int, path: Path, cache_key: str, caption: str) -> None:
+    """Sends the day/night banner as a photo; caches the Telegram file_id after the first upload."""
+    try:
+        photo = _PHASE_IMAGE_CACHE.get(cache_key) or FSInputFile(path)
+        msg = await bot.send_photo(chat_id, photo=photo, caption=caption)
+        if cache_key not in _PHASE_IMAGE_CACHE and msg.photo:
+            _PHASE_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
+    except (TelegramBadRequest, TelegramForbiddenError, FileNotFoundError):
+        await bot.send_message(chat_id, caption)
 
 
 def night_all_done(game: Game) -> bool:
@@ -114,8 +132,11 @@ async def night_phase(bot: Bot, game: Game) -> None:
     game.night_poisoner_needed = bool(alive_poisoner)
     game.night_wanderer_needed = bool(alive_wanderer)
 
-    await bot.send_message(
+    await _send_phase_image(
+        bot,
         game.chat_id,
+        NIGHT_IMAGE_PATH,
+        "night",
         f"🌙 <b>{game.day_number}-tun boshlandi.</b>\n"
         "Shahar uyquga ketdi... Maxsus rollar harakat qilmoqda.",
     )
@@ -357,8 +378,11 @@ async def day_phase(bot: Bot, game: Game) -> None:
     game.state = GameState.DAY_DISCUSSION
     alive = [p for p in game.players.values() if p.alive]
     names = "\n".join(f"• {mention(p)}" for p in alive)
-    await bot.send_message(
+    await _send_phase_image(
+        bot,
         game.chat_id,
+        DAY_IMAGE_PATH,
+        "day",
         f"☀️ <b>{game.day_number}-kun.</b>\nTirik qolganlar:\n{names}\n\n"
         f"Muhokama vaqti: {DAY_DISCUSSION_DURATION} soniya.",
     )
