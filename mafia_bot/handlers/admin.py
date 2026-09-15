@@ -4,6 +4,7 @@ from aiogram.types import Message
 
 import db
 from config import ADMIN_IDS
+from economy import ITEMS
 
 router = Router(name="admin")
 
@@ -13,18 +14,35 @@ async def cmd_profile(message: Message) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
     user_row = await db.get_user(message.from_user.id)
     clan_row = await db.get_user_clan(message.from_user.id)
+    inventory_rows = await db.get_inventory(message.from_user.id)
 
     lines = [
         f"👤 <b>{message.from_user.full_name}</b>",
+        f"🆔 ID: <code>{message.from_user.id}</code>",
+        "",
         f"💵 Dollar: {user_row['dollars']}",
         f"💎 Olmos: {user_row['diamonds']}",
         f"🪙 Coin: {user_row['coins']}",
-        f"🎮 O'yinlar: {user_row['games']} | 🏆 G'alabalar: {user_row['wins']}",
     ]
     if clan_row:
         lines.append(f"🏰 Klan: {clan_row['name']} [{clan_row['tag']}] ({user_row['clan_role']})")
     else:
         lines.append("🏰 Klan: yo'q")
+
+    lines.append("")
+    lines.append("🎒 <b>Buyumlar:</b>")
+    if inventory_rows:
+        for row in inventory_rows:
+            item = ITEMS.get(row["item_key"])
+            if not item:
+                continue
+            state = "🟢" if row["enabled"] else "🔴"
+            lines.append(f"{item['emoji']} {item['name']}: {row['count']} ta {state}")
+    else:
+        lines.append("<i>(yo'q — /dokon orqali sotib oling)</i>")
+
+    lines.append("")
+    lines.append(f"🎮 O'yinlar: {user_row['games']} | 🏆 G'alabalar: {user_row['wins']}")
     await message.answer("\n".join(lines))
 
 

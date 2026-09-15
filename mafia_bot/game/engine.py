@@ -6,10 +6,17 @@ from collections import Counter
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
+import db
 from config import DAY_DISCUSSION_DURATION, NIGHT_DURATION, VOTE_DURATION
 from economy import payout_game_results
 from texts import ROLE_NAMES
-from utils import build_target_keyboard, build_vote_keyboard, build_vote_tally_text, mention
+from utils import (
+    build_mafia_kill_keyboard,
+    build_target_keyboard,
+    build_vote_keyboard,
+    build_vote_tally_text,
+    mention,
+)
 
 from .manager import manager
 from .models import Game, GameState, Role
@@ -70,7 +77,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
     mafia_ids = {p.user_id for p in alive_mafia}
     for m in alive_mafia:
         teammates = ", ".join(p.full_name for p in alive_mafia if p.user_id != m.user_id) or "yo'q"
-        kb = build_target_keyboard(game, exclude_ids=mafia_ids, prefix="m_kill")
+        kb = build_mafia_kill_keyboard(game, m.user_id, exclude_ids=mafia_ids)
         await _safe_send(
             bot,
             m.user_id,
@@ -103,9 +110,42 @@ async def night_phase(bot: Bot, game: Game) -> None:
         mafia_target = random.choice(candidates)
 
     victim_id = mafia_target if mafia_target != game.doctor_target else None
+    rifle_used = bool(game.mafia_rifle_users)
 
     if victim_id is not None:
         victim = game.players[victim_id]
+
+        if victim.items.get("mirror", 0) > 0 and await db.consume_item(victim.user_id, "mirror"):
+            victim.items["mirror"] -= 1
+            alive_mafia_ids = [p.user_id for p in game.players.values() if p.alive and p.role == Role.MAFIA]
+            if alive_mafia_ids:
+                bounced = game.players[random.choice(alive_mafia_ids)]
+                bounced.alive = False
+                await _safe_send(bot, victim.user_id, "🔮 Sehrli oynangiz o'qni qaytardi! Siz omon qoldingiz.")
+                await bot.send_message(
+                    game.chat_id,
+                    f"🔮 Tun natijasi: mafiyaning o'qi qaytib, <b>{mention(bounced)}</b> halok bo'ldi.\n"
+                    f"U — {ROLE_NAMES[bounced.role]} edi.",
+                )
+                return
+            victim_id = None
+
+    if rifle_used:
+        for uid in list(game.mafia_rifle_users):
+            if await db.consume_item(uid, "rifle"):
+                shooter = game.players.get(uid)
+                if shooter:
+                    shooter.items["rifle"] = max(0, shooter.items.get("rifle", 0) - 1)
+
+    if victim_id is not None:
+        victim = game.players[victim_id]
+
+        if not rifle_used and victim.items.get("shield", 0) > 0 and await db.consume_item(victim.user_id, "shield"):
+            victim.items["shield"] -= 1
+            await _safe_send(bot, victim.user_id, "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi!")
+            await bot.send_message(game.chat_id, "🌤 Tun tinch o'tdi. Bu safar hech kim halok bo'lmadi.")
+            return
+
         victim.alive = False
         await bot.send_message(
             game.chat_id,
@@ -152,6 +192,18 @@ async def day_phase(bot: Bot, game: Game) -> None:
             candidates = [uid for uid, c in top if c == max_count]
             if len(candidates) == 1:
                 eliminated = game.players[candidates[0]]
+
+                if eliminated.items.get("vote_shield", 0) > 0 and await db.consume_item(
+                    eliminated.user_id, "vote_shield"
+                ):
+                    eliminated.items["vote_shield"] -= 1
+                    await bot.send_message(
+                        game.chat_id,
+                        f"⚖️ {mention(eliminated)} eng ko'p ovoz oldi, lekin "
+                        "Ovozdan himoya buyumi tufayli omon qoldi!",
+                    )
+                    return
+
                 eliminated.alive = False
                 await bot.send_message(
                     game.chat_id,
@@ -165,14 +217,14 @@ async def day_phase(bot: Bot, game: Game) -> None:
 
 async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     game.state = GameState.FINISHED
-    lines = []
+    lines = ["🏁 <b>O'YIN TUGADI</b>", ""]
     if winner == "town":
         lines.append("🎉 <b>Tinch aholi g'alaba qozondi!</b> Barcha mafiyalar tutildi.")
     else:
         lines.append("🔪 <b>Mafiya g'alaba qozondi!</b> Shahar ularning qo'liga o'tdi.")
 
     lines.append("")
-    lines.append("<b>Barcha ishtirokchilar va rollari:</b>")
+    lines.append("<b>👥 Barcha ishtirokchilar va rollari:</b>")
     for p in game.players.values():
         status = "🟢 tirik" if p.alive else "⚰️ halok"
         lines.append(f"• {p.full_name} — {ROLE_NAMES[p.role]} ({status})")

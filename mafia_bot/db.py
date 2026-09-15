@@ -57,6 +57,14 @@ async def init_db() -> None:
             status TEXT NOT NULL DEFAULT 'active',
             created_at INTEGER NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS inventory (
+            user_id INTEGER NOT NULL,
+            item_key TEXT NOT NULL,
+            count INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (user_id, item_key)
+        );
         """
     )
     await _conn.commit()
@@ -291,3 +299,50 @@ async def transition_listing(listing_id: int, to_status: str) -> bool:
     )
     await _conn.commit()
     return cur.rowcount > 0
+
+
+async def add_item(user_id: int, item_key: str, qty: int = 1) -> None:
+    await _conn.execute(
+        "INSERT INTO inventory (user_id, item_key, count) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id, item_key) DO UPDATE SET count = count + excluded.count",
+        (user_id, item_key, qty),
+    )
+    await _conn.commit()
+
+
+async def get_inventory(user_id: int) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT * FROM inventory WHERE user_id = ? AND count > 0 ORDER BY item_key", (user_id,)
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def consume_item(user_id: int, item_key: str) -> bool:
+    """Atomically spend one unit of an item; returns False if none was available."""
+    cur = await _conn.execute(
+        "UPDATE inventory SET count = count - 1 WHERE user_id = ? AND item_key = ? AND count > 0",
+        (user_id, item_key),
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def set_item_enabled(user_id: int, item_key: str, enabled: bool) -> None:
+    await _conn.execute(
+        "INSERT INTO inventory (user_id, item_key, count, enabled) VALUES (?, ?, 0, ?) "
+        "ON CONFLICT(user_id, item_key) DO UPDATE SET enabled = excluded.enabled",
+        (user_id, item_key, int(enabled)),
+    )
+    await _conn.commit()
+
+
+async def get_enabled_items(user_id: int) -> dict[str, int]:
+    cur = await _conn.execute(
+        "SELECT item_key, count FROM inventory WHERE user_id = ? AND enabled = 1 AND count > 0",
+        (user_id,),
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return {row["item_key"]: row["count"] for row in rows}

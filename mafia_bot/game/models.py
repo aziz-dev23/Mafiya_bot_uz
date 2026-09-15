@@ -26,6 +26,7 @@ class Player:
     role: Role | None = None
     alive: bool = True
     clan_tag: str | None = None
+    items: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -48,6 +49,8 @@ class Game:
     night_doctor_needed: bool = False
     night_detective_needed: bool = False
     night_event: "asyncio.Event | None" = None
+    mafia_rifle_users: set[int] = field(default_factory=set)
+    detective_correct: bool = False
 
     # day phase state
     day_votes: dict[int, int | None] = field(default_factory=dict)

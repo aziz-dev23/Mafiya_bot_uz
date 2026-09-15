@@ -164,6 +164,9 @@ async def on_start(callback: CallbackQuery, bot: Bot) -> None:
     await callback.answer("O'yin boshlanmoqda...")
     assign_roles(game)
 
+    for p in game.players.values():
+        p.items = await db.get_enabled_items(p.user_id)
+
     try:
         await callback.message.edit_text("🎮 O'yin boshlandi! Rollar shaxsiy xabarlarga yuborildi.")
     except TelegramBadRequest:

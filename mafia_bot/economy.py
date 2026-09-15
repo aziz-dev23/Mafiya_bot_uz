@@ -35,6 +35,16 @@ DIAMOND_PACKAGES = [
 DOLLARS_WIN_ALIVE = 1000
 DOLLARS_WIN_DEAD = 400
 DOLLARS_LOSE = 150
+DETECTIVE_BONUS_DOLLARS = 200
+
+# Bosqich 1 buyumlari — hozircha faqat Mafiya/Doktor/Komissar/Tinch aholi bilan ishlaydiganlar.
+ITEMS = {
+    "shield": {"name": "Himoya", "emoji": "🛡", "price": 100, "currency": "dollar"},
+    "fake_doc": {"name": "Soxta hujjat", "emoji": "📁", "price": 190, "currency": "dollar"},
+    "vote_shield": {"name": "Ovozdan himoya", "emoji": "⚖️", "price": 1, "currency": "diamond"},
+    "rifle": {"name": "Miltiq", "emoji": "🔫", "price": 1, "currency": "diamond"},
+    "mirror": {"name": "Sehrli oyna", "emoji": "🔮", "price": 1000, "currency": "diamond"},
+}
 
 CURRENCY_COLUMN = {"dollar": "dollars", "diamond": "diamonds", "coin": "coins"}
 CURRENCY_EMOJI = {"dollar": "💵", "diamond": "💎", "coin": "🪙"}
@@ -87,9 +97,19 @@ async def payout_game_results(game: Game, winner: str) -> list[str]:
             bonus_pct = clan_bonus_pct(clan_level(clan_row["xp"]))
         total = base + (base * bonus_pct // 100)
 
+        detective_bonus = 0
+        if p.role == Role.DETECTIVE and getattr(game, "detective_correct", False):
+            detective_bonus = DETECTIVE_BONUS_DOLLARS
+            total += detective_bonus
+
         await db.add_balance(p.user_id, dollars=total)
         await db.record_game_result(p.user_id, won)
 
-        bonus_note = " (klan bonusi bilan)" if bonus_pct else ""
-        lines.append(f"• {p.full_name}: +{total}💵{bonus_note}")
+        notes = []
+        if bonus_pct:
+            notes.append("klan bonusi")
+        if detective_bonus:
+            notes.append(f"🕵️ komissar bonusi +{detective_bonus}💵")
+        note = f" ({', '.join(notes)})" if notes else ""
+        lines.append(f"• {p.full_name}: +{total}💵{note}")
     return lines
