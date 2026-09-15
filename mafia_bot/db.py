@@ -111,6 +111,13 @@ async def get_user(user_id: int) -> aiosqlite.Row | None:
     return row
 
 
+async def get_user_by_username(username: str) -> aiosqlite.Row | None:
+    cur = await _conn.execute("SELECT * FROM users WHERE username = ? COLLATE NOCASE", (username,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row
+
+
 async def add_balance(user_id: int, dollars: int = 0, diamonds: int = 0, coins: int = 0) -> None:
     await _conn.execute(
         "UPDATE users SET dollars = dollars + ?, diamonds = diamonds + ?, coins = coins + ? WHERE user_id = ?",

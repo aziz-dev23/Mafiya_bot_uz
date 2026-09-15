@@ -10,7 +10,7 @@ from aiogram.types import BotCommand
 
 import db
 from config import BOT_TOKEN
-from handlers import admin, clan, common, day, items, lobby, market, menu, night, shop
+from handlers import admin, clan, common, day, items, lobby, market, menu, night, shop, transfer
 
 
 async def main() -> None:
@@ -30,6 +30,7 @@ async def main() -> None:
     dp.include_router(shop.router)
     dp.include_router(market.router)
     dp.include_router(items.router)
+    dp.include_router(transfer.router)
     dp.include_router(admin.router)
     dp.include_router(lobby.router)
     dp.include_router(night.router)
@@ -45,6 +46,8 @@ async def main() -> None:
             BotCommand(command="market", description="Bozor — valyutalar savdosi"),
             BotCommand(command="dokon", description="Buyumlar do'koni (Himoya, Miltiq va h.k.)"),
             BotCommand(command="sumka", description="Mening buyumlarim (yoqish/o'chirish)"),
+            BotCommand(command="send", description="Boshqa foydalanuvchiga Dollar yuborish"),
+            BotCommand(command="sendgem", description="Boshqa foydalanuvchiga Olmos yuborish"),
             BotCommand(command="profile", description="Profilingiz (balans, statistika)"),
             BotCommand(command="help", description="Yordam"),
         ]

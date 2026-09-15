@@ -48,6 +48,10 @@ def build_main_menu_keyboard(bot_username: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💎 Olmos sotib olish", callback_data="menu:shop"),
                 InlineKeyboardButton(text="🏆 Top klanlar", callback_data="menu:topclans"),
             ],
+            [
+                InlineKeyboardButton(text="💸 Pul yuborish", callback_data="menu:send_dollar"),
+                InlineKeyboardButton(text="💎 Olmos yuborish", callback_data="menu:send_diamond"),
+            ],
             [InlineKeyboardButton(text="❓ Yordam", callback_data="menu:help")],
         ]
     )
