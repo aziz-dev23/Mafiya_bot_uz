@@ -6,7 +6,7 @@ from pathlib import Path
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 import db
 from config import DAWN_DURATION, DAY_DISCUSSION_DURATION, NIGHT_DURATION, VOTE_DURATION
@@ -32,6 +32,7 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 DAY_IMAGE_PATH = ASSETS_DIR / "day.jpg"
 NIGHT_IMAGE_PATH = ASSETS_DIR / "night.jpg"
 _PHASE_IMAGE_CACHE: dict[str, str] = {}
+_BOT_USERNAME_CACHE: str | None = None
 
 
 async def _send_phase_image(bot: Bot, chat_id: int, path: Path, cache_key: str, caption: str) -> None:
@@ -43,6 +44,25 @@ async def _send_phase_image(bot: Bot, chat_id: int, path: Path, cache_key: str, 
             _PHASE_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
     except (TelegramBadRequest, TelegramForbiddenError, FileNotFoundError):
         await bot.send_message(chat_id, caption)
+
+
+async def _get_bot_username(bot: Bot) -> str:
+    global _BOT_USERNAME_CACHE
+    if _BOT_USERNAME_CACHE is None:
+        me = await bot.get_me()
+        _BOT_USERNAME_CACHE = me.username
+    return _BOT_USERNAME_CACHE
+
+
+def _goto_bot_keyboard(username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🤖 Botga o'tish", url=f"https://t.me/{username}")]]
+    )
+
+
+def _alive_list_text(game: Game) -> str:
+    alive = [p for p in game.players.values() if p.alive]
+    return "\n".join(f"{i}. {p.full_name}" for i, p in enumerate(alive, 1))
 
 
 def night_all_done(game: Game) -> bool:
@@ -101,6 +121,8 @@ async def night_phase(bot: Bot, game: Game) -> None:
     game.wanderer_acted = False
     game.night_event = asyncio.Event()
 
+    tonight_deaths: set[int] = set()
+
     # O'tgan tundagi Kezuvchi dorisi shu kecha ta'sir qiladi (agar bor bo'lsa).
     for victim_id, die_night in list(game.pending_poison.items()):
         if die_night != game.day_number:
@@ -109,6 +131,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
         victim = game.players.get(victim_id)
         if victim and victim.alive:
             victim.alive = False
+            tonight_deaths.add(victim.user_id)
             await bot.send_message(
                 game.chat_id,
                 f"💊 Tun natijasi: <b>{mention(victim)}</b> kezuvchining dorisidan halok bo'ldi.\n"
@@ -137,8 +160,17 @@ async def night_phase(bot: Bot, game: Game) -> None:
         game.chat_id,
         NIGHT_IMAGE_PATH,
         "night",
-        f"🌙 <b>{game.day_number}-tun boshlandi.</b>\n"
-        "Shahar uyquga ketdi... Maxsus rollar harakat qilmoqda.",
+        f"🌌 <b>Tun — {game.day_number}</b>\n"
+        "Ko'chaga faqat jasur va qo'rqmas odamlar chiqishdi. Ertalab tirik "
+        "qolganlarni sanaymiz...",
+    )
+
+    username = await _get_bot_username(bot)
+    await bot.send_message(
+        game.chat_id,
+        f"👥 <b>Tirik o'yinchilar:</b>\n{_alive_list_text(game)}\n\n"
+        f"⏳ Tonggacha {NIGHT_DURATION} soniya qoldi.",
+        reply_markup=_goto_bot_keyboard(username),
     )
 
     mafia_ids = {p.user_id for p in alive_mafia}
@@ -196,8 +228,6 @@ async def night_phase(bot: Bot, game: Game) -> None:
     except asyncio.TimeoutError:
         pass
 
-    tonight_deaths: set[int] = set()
-
     mafia_target = None
     if game.mafia_votes:
         counts = Counter(game.mafia_votes.values())
@@ -243,7 +273,6 @@ async def night_phase(bot: Bot, game: Game) -> None:
         if not rifle_used and victim.items.get("shield", 0) > 0 and await db.consume_item(victim.user_id, "shield"):
             victim.items["shield"] -= 1
             await _safe_send(bot, victim.user_id, "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi!")
-            await bot.send_message(game.chat_id, "🌤 Tun tinch o'tdi. Bu safar hech kim halok bo'lmadi.")
         else:
             victim.alive = False
             tonight_deaths.add(victim.user_id)
@@ -252,11 +281,6 @@ async def night_phase(bot: Bot, game: Game) -> None:
                 f"☠️ Tun natijasi: <b>{mention(victim)}</b> halok bo'ldi.\n"
                 f"U — {ROLE_NAMES[victim.role]} edi.",
             )
-    elif not mafia_resolved:
-        await bot.send_message(
-            game.chat_id,
-            "🌤 Tun tinch o'tdi. Bu safar hech kim halok bo'lmadi.",
-        )
 
     # Qotil — mustaqil o'ldirish.
     if game.killer_target is not None:
@@ -326,6 +350,9 @@ async def night_phase(bot: Bot, game: Game) -> None:
                     f"🚶 Siz tashrif buyurgan {visited.full_name} shu kecha halok bo'lganini bilib oldingiz.",
                 )
 
+    if not tonight_deaths:
+        await bot.send_message(game.chat_id, "🌤 Tun tinch o'tdi. Bu safar hech kim halok bo'lmadi.")
+
 
 async def dawn_phase(bot: Bot, game: Game) -> None:
     eligible = [p for p in game.players.values() if p.alive and p.items.get("hero_shot", 0) > 0]
@@ -377,14 +404,21 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
 async def day_phase(bot: Bot, game: Game) -> None:
     game.state = GameState.DAY_DISCUSSION
     alive = [p for p in game.players.values() if p.alive]
-    names = "\n".join(f"• {mention(p)}" for p in alive)
     await _send_phase_image(
         bot,
         game.chat_id,
         DAY_IMAGE_PATH,
         "day",
-        f"☀️ <b>{game.day_number}-kun.</b>\nTirik qolganlar:\n{names}\n\n"
-        f"Muhokama vaqti: {DAY_DISCUSSION_DURATION} soniya.",
+        f"🌅 <b>Xayrli tong!</b>\n☀️ Kun: {game.day_number}\n"
+        "Shamollar tundagi mish-mishlarni butun shaharga yetkazmoqda..",
+    )
+
+    username = await _get_bot_username(bot)
+    await bot.send_message(
+        game.chat_id,
+        f"👥 <b>Tirik o'yinchilar:</b>\n{_alive_list_text(game)}\n\n"
+        f"⏳ Muhokama tugashiga {DAY_DISCUSSION_DURATION} soniya qoldi.",
+        reply_markup=_goto_bot_keyboard(username),
     )
     await asyncio.sleep(DAY_DISCUSSION_DURATION)
 
