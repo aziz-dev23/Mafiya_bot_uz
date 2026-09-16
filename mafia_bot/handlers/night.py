@@ -130,6 +130,8 @@ async def on_detective_check(callback: CallbackQuery) -> None:
     if target.items.get("fake_doc", 0) > 0 and await db.consume_item(target.user_id, "fake_doc"):
         target.items["fake_doc"] -= 1
         faked = True
+    if target.user_id == game.advokat_target:
+        faked = True
 
     is_mafia = target.role in (Role.MAFIA, Role.DON) and not faked
     if is_mafia:
@@ -331,3 +333,61 @@ async def on_hero_shot(callback: CallbackQuery) -> None:
 
     if len(game.dawn_acted) >= game.dawn_needed and game.dawn_event:
         game.dawn_event.set()
+
+
+@router.callback_query(F.data.startswith("advokat_shield:"))
+async def on_advokat_shield(callback: CallbackQuery) -> None:
+    game = manager.get_game_by_player(callback.from_user.id)
+    if not game or game.state != GameState.NIGHT:
+        await callback.answer("Hozir tun emas.", show_alert=True)
+        return
+
+    voter = game.players.get(callback.from_user.id)
+    if not voter or not voter.alive or voter.role != Role.LAWYER:
+        await callback.answer("Bu tugma siz uchun emas.", show_alert=True)
+        return
+
+    target_id = int(callback.data.split(":", 1)[1])
+    target = game.players.get(target_id)
+    if not target or not target.alive:
+        await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
+        return
+
+    game.advokat_target = target_id
+    game.advokat_acted = True
+    await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
+    try:
+        await callback.message.edit_text(f"👨‍💼 Siz himoya qildingiz: {target.full_name}")
+    except TelegramBadRequest:
+        pass
+
+    if night_all_done(game) and game.night_event:
+        game.night_event.set()
+
+
+@router.callback_query(F.data.startswith("sorcerer_revenge:"))
+async def on_sorcerer_revenge(callback: CallbackQuery) -> None:
+    game = manager.get_game_by_player(callback.from_user.id)
+    if not game or game.revenge_event is None:
+        await callback.answer("Bu imkoniyat endi mavjud emas.", show_alert=True)
+        return
+
+    sorcerer = game.players.get(callback.from_user.id)
+    if not sorcerer or sorcerer.role != Role.SORCERER:
+        await callback.answer("Bu tugma siz uchun emas.", show_alert=True)
+        return
+
+    target_id = int(callback.data.split(":", 1)[1])
+    target = game.players.get(target_id)
+    if not target or not target.alive:
+        await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
+        return
+
+    game.revenge_target = target_id
+    await callback.answer(f"O'ch: {target.full_name}")
+    try:
+        await callback.message.edit_text(f"🧞‍♂️ O'ch tanlandi: {target.full_name}")
+    except TelegramBadRequest:
+        pass
+
+    game.revenge_event.set()

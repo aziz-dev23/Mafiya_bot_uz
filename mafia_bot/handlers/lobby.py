@@ -46,11 +46,11 @@ def build_lobby_keyboard() -> InlineKeyboardMarkup:
 
 def build_role_message(player: Player, game: Game) -> str:
     lines = [f"🎭 Sizning rolingiz: <b>{ROLE_NAMES[player.role]}</b>", "", ROLE_DESCRIPTIONS[player.role]]
-    if player.role in (Role.MAFIA, Role.DON):
+    if player.role in (Role.MAFIA, Role.DON, Role.LAWYER):
         teammates = [
             p.full_name
             for p in game.players.values()
-            if p.role in (Role.MAFIA, Role.DON) and p.user_id != player.user_id
+            if p.role in (Role.MAFIA, Role.DON, Role.LAWYER) and p.user_id != player.user_id
         ]
         if teammates:
             lines.append("")

@@ -10,6 +10,9 @@ ROLE_NAMES = {
     Role.POISONER: "💊 Kezuvchi",
     Role.WANDERER: "🚶 Daydi",
     Role.MINER: "⛏ Konchi",
+    Role.LAWYER: "👨‍💼 Advokat",
+    Role.SORCERER: "🧞‍♂️ Afsungar",
+    Role.WOLF: "🐺 Bo'ri",
     Role.CIVILIAN: "👤 Tinch aholi",
 }
 
@@ -57,6 +60,23 @@ ROLE_DESCRIPTIONS = {
         "Siz — <b>Konchi</b>siz. Maxsus harakatingiz yo'q, lekin har kecha "
         "ozgina ehtimol bilan tasodifan 'sirg'anib' halok bo'lish xavfingiz "
         "bor."
+    ),
+    Role.LAWYER: (
+        "Siz — <b>Advokat</b>siz, Mafiya tomonidasiz. Har kecha bitta odamni "
+        "(odatda mafiya sherigingizni) tanlaysiz — agar Komissar aynan shu "
+        "kecha o'sha kishini tekshirsa, natija soxta 'mafiya emas' chiqadi."
+    ),
+    Role.SORCERER: (
+        "Siz — <b>Afsungar</b>siz, mustaqilsiz. Agar mafiya tunda sizni "
+        "o'ldirsa, o'zingiz bilan birga bitta mafiya a'zosini ham olib "
+        "ketasiz. Agar kunduzi ovoz bilan haydalsangiz, o'limingizdan oldin "
+        "birovdan o'ch olish huquqiga ega bo'lasiz."
+    ),
+    Role.WOLF: (
+        "Siz — <b>Bo'ri</b>siz, hozircha hech kimga tegishli emassiz. Agar "
+        "mafiya tunda sizni o'ldirmoqchi bo'lsa, halok bo'lmaysiz — o'rniga "
+        "yashirincha Mafiya jamoasiga aylanasiz. Qotil sizni o'ldirsa, "
+        "oddiy halok bo'lasiz."
     ),
     Role.CIVILIAN: (
         "Siz — <b>Tinch aholi</b>siz. Maxsus qobiliyatingiz yo'q. Kunduzi "

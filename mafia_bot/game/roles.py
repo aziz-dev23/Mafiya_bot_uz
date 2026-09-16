@@ -15,6 +15,9 @@ def build_role_list(player_count: int) -> list[Role]:
     wanderer_count = 1 if player_count >= 7 else 0
     hitman_count = 1 if player_count >= 8 else 0
     miner_count = 1 if player_count >= 8 else 0
+    lawyer_count = 1 if player_count >= 9 else 0
+    sorcerer_count = 1 if player_count >= 10 else 0
+    wolf_count = 1 if player_count >= 11 else 0
 
     special = (
         mafia_count
@@ -25,6 +28,9 @@ def build_role_list(player_count: int) -> list[Role]:
         + wanderer_count
         + hitman_count
         + miner_count
+        + lawyer_count
+        + sorcerer_count
+        + wolf_count
     )
     civilian_count = max(0, player_count - special)
 
@@ -37,6 +43,9 @@ def build_role_list(player_count: int) -> list[Role]:
         + [Role.WANDERER] * wanderer_count
         + [Role.HITMAN] * hitman_count
         + [Role.MINER] * miner_count
+        + [Role.LAWYER] * lawyer_count
+        + [Role.SORCERER] * sorcerer_count
+        + [Role.WOLF] * wolf_count
         + [Role.CIVILIAN] * civilian_count
     )
     return roles

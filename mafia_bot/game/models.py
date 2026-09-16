@@ -13,6 +13,9 @@ class Role(str, Enum):
     POISONER = "poisoner"
     WANDERER = "wanderer"
     MINER = "miner"
+    LAWYER = "lawyer"
+    SORCERER = "sorcerer"
+    WOLF = "wolf"
     CIVILIAN = "civilian"
 
 
@@ -74,6 +77,13 @@ class Game:
     wanderer_acted: bool = False
     wanderer_target: int | None = None
     pending_poison: dict[int, int] = field(default_factory=dict)
+
+    # Bosqich 4: Advokat / Afsungar / Bo'ri
+    night_advokat_needed: bool = False
+    advokat_acted: bool = False
+    advokat_target: int | None = None
+    revenge_event: "asyncio.Event | None" = None
+    revenge_target: int | None = None
 
     # dawn phase state (Geroy buyumi)
     dawn_event: "asyncio.Event | None" = None

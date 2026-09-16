@@ -9,6 +9,7 @@ MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", "4"))
 MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "15"))
 NIGHT_DURATION = int(os.getenv("NIGHT_DURATION", "45"))
 DAWN_DURATION = int(os.getenv("DAWN_DURATION", "20"))
+REVENGE_DURATION = int(os.getenv("REVENGE_DURATION", "20"))
 DAY_DISCUSSION_DURATION = int(os.getenv("DAY_DISCUSSION_DURATION", "60"))
 VOTE_DURATION = int(os.getenv("VOTE_DURATION", "30"))
 
