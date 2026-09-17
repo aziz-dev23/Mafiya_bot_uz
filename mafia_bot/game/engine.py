@@ -222,59 +222,82 @@ async def night_phase(bot: Bot, game: Game) -> None:
     )
 
     mafia_ids = {p.user_id for p in alive_mafia}
+    night_prompt_tasks = []
+
     for m in alive_mafia:
         teammates = ", ".join(p.full_name for p in alive_mafia if p.user_id != m.user_id) or "yo'q"
         kb = build_mafia_kill_keyboard(game, m.user_id, exclude_ids=mafia_ids)
-        await _safe_send_replace(
-            bot,
-            game,
-            m.user_id,
-            f"🔪 Kimni yo'q qilmoqchisiz?\nSherik mafiyalar: {teammates}",
-            reply_markup=kb,
+        night_prompt_tasks.append(
+            _safe_send_replace(
+                bot,
+                game,
+                m.user_id,
+                f"🔪 Kimni yo'q qilmoqchisiz?\nSherik mafiyalar: {teammates}",
+                reply_markup=kb,
+            )
         )
 
     for d in alive_doctor:
         kb = build_target_keyboard(game, exclude_ids=set(), prefix="d_save")
-        await _safe_send_replace(bot, game, d.user_id, "💊 Kimni himoya qilmoqchisiz?", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, d.user_id, "💊 Kimni himoya qilmoqchisiz?", reply_markup=kb)
+        )
 
     for c in alive_detective:
         kb = build_target_keyboard(game, exclude_ids={c.user_id}, prefix="c_check")
-        await _safe_send_replace(bot, game, c.user_id, "🕵️ Kimni tekshirmoqchisiz?", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, c.user_id, "🕵️ Kimni tekshirmoqchisiz?", reply_markup=kb)
+        )
 
     for k in alive_killer:
         kb = build_target_keyboard(game, exclude_ids={k.user_id}, prefix="q_kill")
-        await _safe_send_replace(bot, game, k.user_id, "🔪 Kimni yo'q qilmoqchisiz? (mustaqil)", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, k.user_id, "🔪 Kimni yo'q qilmoqchisiz? (mustaqil)", reply_markup=kb)
+        )
 
     for h in alive_hitman:
         kb = build_target_keyboard(game, exclude_ids={h.user_id}, prefix="yq_kill")
-        await _safe_send_replace(bot, game, h.user_id, "🥷 Kimni yo'q qilmoqchisiz? (mustaqil)", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, h.user_id, "🥷 Kimni yo'q qilmoqchisiz? (mustaqil)", reply_markup=kb)
+        )
 
     for p_ in alive_poisoner:
         kb = build_target_keyboard(game, exclude_ids={p_.user_id}, prefix="kez_dose")
-        await _safe_send_replace(bot, game, p_.user_id, "💊 Kimga dori bermoqchisiz?", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, p_.user_id, "💊 Kimga dori bermoqchisiz?", reply_markup=kb)
+        )
 
     for w in alive_wanderer:
         kb = build_target_keyboard(game, exclude_ids={w.user_id}, prefix="daydi_visit")
-        await _safe_send_replace(bot, game, w.user_id, "🚶 Kimning oldiga bormoqchisiz?", reply_markup=kb)
+        night_prompt_tasks.append(
+            _safe_send_replace(bot, game, w.user_id, "🚶 Kimning oldiga bormoqchisiz?", reply_markup=kb)
+        )
 
     for don in alive_don:
         if game.don_check_used:
             continue
         kb = build_don_check_keyboard(game, exclude_ids=mafia_ids)
-        await _safe_send_replace(
-            bot,
-            game,
-            don.user_id,
-            "🎩 Xohlasangiz, kimningdir Komissar ekanini aniqlashga urinib ko'rishingiz mumkin "
-            "(butun o'yin davomida faqat bir marta):",
-            reply_markup=kb,
+        night_prompt_tasks.append(
+            _safe_send_replace(
+                bot,
+                game,
+                don.user_id,
+                "🎩 Xohlasangiz, kimningdir Komissar ekanini aniqlashga urinib ko'rishingiz mumkin "
+                "(butun o'yin davomida faqat bir marta):",
+                reply_markup=kb,
+            )
         )
 
     for law in alive_advokat:
         kb = build_target_keyboard(game, exclude_ids={law.user_id}, prefix="advokat_shield")
-        await _safe_send_replace(
-            bot, game, law.user_id, "👨‍💼 Kimni tekshiruvdan (Komissardan) himoya qilmoqchisiz?", reply_markup=kb
+        night_prompt_tasks.append(
+            _safe_send_replace(
+                bot, game, law.user_id, "👨‍💼 Kimni tekshiruvdan (Komissardan) himoya qilmoqchisiz?", reply_markup=kb
+            )
         )
+
+    if night_prompt_tasks:
+        await asyncio.gather(*night_prompt_tasks)
 
     if night_all_done(game):
         game.night_event.set()
@@ -436,16 +459,18 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
     game.dawn_needed = len(eligible)
     game.dawn_event = asyncio.Event()
 
-    for hero in eligible:
-        kb = build_target_keyboard(game, exclude_ids={hero.user_id}, prefix="hero_shot")
-        await _safe_send_replace(
+    dawn_prompt_tasks = [
+        _safe_send_replace(
             bot,
             game,
             hero.user_id,
             "🥷 Sizda Geroy buyumi bor — tongda bir marta otish huquqingiz bor! "
             "Kimni otmoqchisiz? (xohlamasangiz e'tiborsiz qoldiring)",
-            reply_markup=kb,
+            reply_markup=build_target_keyboard(game, exclude_ids={hero.user_id}, prefix="hero_shot"),
         )
+        for hero in eligible
+    ]
+    await asyncio.gather(*dawn_prompt_tasks)
 
     try:
         await asyncio.wait_for(game.dawn_event.wait(), timeout=DAWN_DURATION)
@@ -535,8 +560,11 @@ async def day_phase(bot: Bot, game: Game) -> None:
     )
 
     kb = build_vote_keyboard(game)
-    for voter in alive:
-        await _safe_send_replace(bot, game, voter.user_id, "🗳 Kimni shahardan haydab chiqarmoqchisiz?", reply_markup=kb)
+    vote_prompt_tasks = [
+        _safe_send_replace(bot, game, voter.user_id, "🗳 Kimni shahardan haydab chiqarmoqchisiz?", reply_markup=kb)
+        for voter in alive
+    ]
+    await asyncio.gather(*vote_prompt_tasks)
 
     try:
         await asyncio.wait_for(game.vote_event.wait(), timeout=VOTE_DURATION)

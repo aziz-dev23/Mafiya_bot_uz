@@ -192,8 +192,10 @@ async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup
 async def _start_game(bot: Bot, game: Game) -> None:
     assign_roles(game)
 
-    for p in game.players.values():
-        p.items = await db.get_enabled_items(p.user_id)
+    async def _load_items(player: Player) -> None:
+        player.items = await db.get_enabled_items(player.user_id)
+
+    await asyncio.gather(*(_load_items(p) for p in game.players.values()))
 
     try:
         await bot.edit_message_text(
@@ -205,11 +207,14 @@ async def _start_game(bot: Bot, game: Game) -> None:
         pass
 
     group_kb = await _group_return_keyboard(bot, game.chat_id)
-    for p in game.players.values():
+
+    async def _send_role(player: Player) -> None:
         try:
-            await bot.send_message(p.user_id, build_role_message(p, game), reply_markup=group_kb)
+            await bot.send_message(player.user_id, build_role_message(player, game), reply_markup=group_kb)
         except (TelegramForbiddenError, TelegramBadRequest):
             pass
+
+    await asyncio.gather(*(_send_role(p) for p in game.players.values()))
 
     asyncio.create_task(run_game(bot, game))
 
