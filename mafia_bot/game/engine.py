@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -10,14 +11,13 @@ from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarku
 
 import db
 from config import DAWN_DURATION, DAY_DISCUSSION_DURATION, NIGHT_DURATION, REVENGE_DURATION, VOTE_DURATION
-from economy import HITMAN_CONTRACT_BONUS_DOLLARS, MINER_SLIP_CHANCE, payout_game_results
+from economy import HITMAN_CONTRACT_BONUS_DOLLARS, payout_game_results
 from texts import ROLE_NAMES
 from utils import (
     build_don_check_keyboard,
     build_mafia_kill_keyboard,
     build_target_keyboard,
     build_vote_keyboard,
-    build_vote_tally_text,
     mention,
 )
 
@@ -32,19 +32,27 @@ MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER)
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 DAY_IMAGE_PATH = ASSETS_DIR / "day.jpg"
 NIGHT_IMAGE_PATH = ASSETS_DIR / "night.jpg"
+ROUND_TABLE_IMAGE_PATH = ASSETS_DIR / "round_table.jpg"
 _PHASE_IMAGE_CACHE: dict[str, str] = {}
 _BOT_USERNAME_CACHE: str | None = None
 
 
-async def _send_phase_image(bot: Bot, chat_id: int, path: Path, cache_key: str, caption: str) -> None:
-    """Sends the day/night banner as a photo; caches the Telegram file_id after the first upload."""
+async def send_phase_image(
+    bot: Bot,
+    chat_id: int,
+    path: Path,
+    cache_key: str,
+    caption: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
+    """Sends a banner/card image as a photo; caches the Telegram file_id after the first upload."""
     try:
         photo = _PHASE_IMAGE_CACHE.get(cache_key) or FSInputFile(path)
-        msg = await bot.send_photo(chat_id, photo=photo, caption=caption)
+        msg = await bot.send_photo(chat_id, photo=photo, caption=caption, reply_markup=reply_markup)
         if cache_key not in _PHASE_IMAGE_CACHE and msg.photo:
             _PHASE_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
     except (TelegramBadRequest, TelegramForbiddenError, FileNotFoundError):
-        await bot.send_message(chat_id, caption)
+        await bot.send_message(chat_id, caption, reply_markup=reply_markup)
 
 
 async def _get_bot_username(bot: Bot) -> str:
@@ -162,7 +170,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
     game.night_wanderer_needed = bool(alive_wanderer)
     game.night_advokat_needed = bool(alive_advokat)
 
-    await _send_phase_image(
+    await send_phase_image(
         bot,
         game.chat_id,
         NIGHT_IMAGE_PATH,
@@ -358,22 +366,6 @@ async def night_phase(bot: Bot, game: Game) -> None:
                         f"🎯 Buyurtmangizni bajardingiz! +{HITMAN_CONTRACT_BONUS_DOLLARS}💵 bonus oldingiz.",
                     )
 
-    # Konchi — passiv sirg'anish xavfi.
-    for miner in [p for p in game.players.values() if p.alive and p.role == Role.MINER]:
-        if random.random() >= MINER_SLIP_CHANCE:
-            continue
-        if miner.items.get("miner_shield", 0) > 0 and await db.consume_item(miner.user_id, "miner_shield"):
-            miner.items["miner_shield"] -= 1
-            await _safe_send(bot, miner.user_id, "🪤 Sirpanishdan himoyangiz sizni saqlab qoldi!")
-        else:
-            miner.alive = False
-            tonight_deaths.add(miner.user_id)
-            await bot.send_message(
-                game.chat_id,
-                f"⛏ Tun natijasi: <b>{mention(miner)}</b> sirg'anib halok bo'ldi.\n"
-                f"U — {ROLE_NAMES[miner.role]} edi.",
-            )
-
     # Daydi — tashrif natijasi.
     if game.wanderer_target in tonight_deaths:
         wanderer_player = next((p for p in game.players.values() if p.alive and p.role == Role.WANDERER), None)
@@ -470,7 +462,7 @@ async def _resolve_sorcerer_revenge(bot: Bot, game: Game, sorcerer) -> None:
 async def day_phase(bot: Bot, game: Game) -> None:
     game.state = GameState.DAY_DISCUSSION
     alive = [p for p in game.players.values() if p.alive]
-    await _send_phase_image(
+    await send_phase_image(
         bot,
         game.chat_id,
         DAY_IMAGE_PATH,
@@ -493,9 +485,16 @@ async def day_phase(bot: Bot, game: Game) -> None:
     game.vote_needed = len(alive)
     game.vote_event = asyncio.Event()
 
+    await bot.send_message(
+        game.chat_id,
+        "🗳 <b>Ovoz berish boshlandi!</b>\nHar bir o'yinchi ovozini shaxsiy xabarda beradi.\n"
+        f"⏳ {VOTE_DURATION} soniya vaqt bor.",
+        reply_markup=_goto_bot_keyboard(username),
+    )
+
     kb = build_vote_keyboard(game)
-    msg = await bot.send_message(game.chat_id, build_vote_tally_text(game), reply_markup=kb)
-    game.vote_message_id = msg.message_id
+    for voter in alive:
+        await _safe_send(bot, voter.user_id, "🗳 Kimni shahardan haydab chiqarmoqchisiz?", reply_markup=kb)
 
     try:
         await asyncio.wait_for(game.vote_event.wait(), timeout=VOTE_DURATION)
@@ -538,24 +537,32 @@ async def day_phase(bot: Bot, game: Game) -> None:
 
 async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     game.state = GameState.FINISHED
-    lines = ["🏁 <b>O'YIN TUGADI</b>", ""]
     if winner == "town":
-        lines.append("🎉 <b>Tinch aholi g'alaba qozondi!</b> Barcha mafiyalar tutildi.")
+        result_text = "🎉 <b>Tinch aholi g'alaba qozondi!</b> Barcha mafiyalar tutildi."
     elif winner == "killer":
-        lines.append("🔪 <b>Qotil yakka o'zi g'alaba qozondi!</b> Shaharda faqat u qoldi.")
+        result_text = "🔪 <b>Qotil yakka o'zi g'alaba qozondi!</b> Shaharda faqat u qoldi."
     else:
-        lines.append("🔪 <b>Mafiya g'alaba qozondi!</b> Shahar ularning qo'liga o'tdi.")
+        result_text = "🔪 <b>Mafiya g'alaba qozondi!</b> Shahar ularning qo'liga o'tdi."
 
-    lines.append("")
-    lines.append("<b>👥 Barcha ishtirokchilar va rollari:</b>")
+    private_messages = await payout_game_results(game, winner)
+    for user_id, text in private_messages:
+        await _safe_send(bot, user_id, f"🏁 <b>O'yin tugadi!</b>\n\n{result_text}\n\n{text}")
+
+    lines = ["🏁 <b>O'YIN TUGADI</b>", "", result_text, ""]
+
+    lines.append("👥 <b>Barcha ishtirokchilar va rollari:</b>")
     for p in game.players.values():
         status = "🟢 tirik" if p.alive else "⚰️ halok"
         lines.append(f"• {p.full_name} — {ROLE_NAMES[p.role]} ({status})")
 
-    payout_lines = await payout_game_results(game, winner)
-    lines.append("")
-    lines.append("<b>💰 Mukofotlar:</b>")
-    lines.extend(payout_lines)
+    top_rows = await db.top_points(since=int(time.time()) - 86_400, limit=10)
+    if top_rows:
+        lines.append("")
+        lines.append("▫️▫️▫️▫️▫️▫️▫️▫️▫️▫️")
+        lines.append("")
+        lines.append("🕐 <b>Kunlik TOP</b>")
+        for i, row in enumerate(top_rows, 1):
+            lines.append(f"{i}. {row['full_name']} — {row['total']} ball")
 
     await bot.send_message(game.chat_id, "\n".join(lines))
     manager.remove_game(game.chat_id)

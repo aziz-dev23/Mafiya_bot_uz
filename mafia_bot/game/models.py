@@ -35,7 +35,6 @@ class Player:
     username: str | None = None
     role: Role | None = None
     alive: bool = True
-    clan_tag: str | None = None
     items: dict[str, int] = field(default_factory=dict)
     contract_target: int | None = None
 
@@ -49,6 +48,8 @@ class Game:
     day_number: int = 0
     lobby_message_id: int | None = None
     task: "asyncio.Task | None" = None
+    autostart_scheduled: bool = False
+    starting: bool = False
 
     # night phase state
     mafia_votes: dict[int, int] = field(default_factory=dict)
@@ -95,4 +96,3 @@ class Game:
     day_votes: dict[int, int | None] = field(default_factory=dict)
     vote_needed: int = 0
     vote_event: "asyncio.Event | None" = None
-    vote_message_id: int | None = None

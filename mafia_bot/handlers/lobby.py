@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 
 import db
-from config import MAX_PLAYERS, MIN_PLAYERS
+from config import LOBBY_AUTOSTART_DELAY, MAX_PLAYERS, MIN_PLAYERS
 from game.engine import run_game
 from game.manager import manager
 from game.models import Game, GameState, Player, Role
@@ -26,21 +26,16 @@ def build_lobby_text(game: Game) -> str:
         lines.append(f"{i}. {p.full_name}")
     lines.append("")
     lines.append(
-        f"Qo'shilish uchun pastdagi tugmani bosing 👇\nKamida {MIN_PLAYERS} kishi bo'lsa, "
-        "istalgan qatnashuvchi \"▶️ Boshlash\"ni bosishi mumkin."
+        f"Qo'shilish uchun pastdagi tugmani bosing 👇\nKamida {MIN_PLAYERS} kishi yig'ilishi bilan "
+        f"o'yin {LOBBY_AUTOSTART_DELAY} soniyadan so'ng avtomatik boshlanadi.\n"
+        "Bekor qilish uchun: /stop"
     )
     return "\n".join(lines)
 
 
 def build_lobby_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Qo'shilish", callback_data="lobby:join")],
-            [
-                InlineKeyboardButton(text="▶️ Boshlash", callback_data="lobby:start"),
-                InlineKeyboardButton(text="❌ Bekor qilish", callback_data="lobby:cancel"),
-            ],
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text="➕ Qo'shilish", callback_data="lobby:join")]]
     )
 
 
@@ -67,20 +62,24 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
     if user.id in game.players:
         return True
     try:
-        await bot.send_message(
+        # Shaxsiy xabar yuborish shart — shu orqali bot ushbu foydalanuvchiga yoza olishini
+        # tekshiramiz. Lekin "qo'shildingiz" degan alohida xabarni chatda qoldirmaymiz —
+        # o'yinchi faqat o'yin boshlanganda o'z rolini ko'rishi kerak.
+        probe = await bot.send_message(
             user.id,
             "✅ Siz Mafiya o'yiniga qo'shildingiz! O'yin boshlanganda rolingiz shu yerga yuboriladi.",
         )
     except (TelegramForbiddenError, TelegramBadRequest):
         return False
 
-    await db.ensure_user(user.id, user.full_name, user.username)
-    clan_row = await db.get_user_clan(user.id)
-    clan_tag = clan_row["tag"] if clan_row else None
+    try:
+        await bot.delete_message(user.id, probe.message_id)
+    except TelegramBadRequest:
+        pass
 
-    game.players[user.id] = Player(
-        user_id=user.id, full_name=user.full_name, username=user.username, clan_tag=clan_tag
-    )
+    await db.ensure_user(user.id, user.full_name, user.username)
+
+    game.players[user.id] = Player(user_id=user.id, full_name=user.full_name, username=user.username)
     manager.register_player(game, user.id)
     return True
 
@@ -159,53 +158,76 @@ async def on_join(callback: CallbackQuery, bot: Bot) -> None:
     except TelegramBadRequest:
         pass
 
-
-@router.callback_query(F.data == "lobby:start")
-async def on_start(callback: CallbackQuery, bot: Bot) -> None:
-    game = manager.get_game(callback.message.chat.id)
-    if not game or game.state != GameState.LOBBY:
-        await callback.answer("Ro'yxat topilmadi.", show_alert=True)
-        return
-    if callback.from_user.id not in game.players:
-        await callback.answer("Avval ro'yxatga qo'shilishingiz kerak.", show_alert=True)
-        return
-    if len(game.players) < MIN_PLAYERS:
-        await callback.answer(f"Kamida {MIN_PLAYERS} o'yinchi kerak.", show_alert=True)
+    if game.state != GameState.LOBBY or game.starting:
         return
 
-    await callback.answer("O'yin boshlanmoqda...")
+    if len(game.players) >= MAX_PLAYERS:
+        game.starting = True
+        await _start_game(bot, game)
+    elif len(game.players) >= MIN_PLAYERS and not game.autostart_scheduled:
+        game.autostart_scheduled = True
+        asyncio.create_task(_autostart_countdown(bot, game))
+
+
+async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup | None:
+    """Guruhga qaytish tugmasi uchun havola topadi (ochiq guruh username'i yoki taklif havolasi)."""
+    url = None
+    try:
+        chat = await bot.get_chat(chat_id)
+        if chat.username:
+            url = f"https://t.me/{chat.username}"
+        else:
+            url = chat.invite_link
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
+
+    if not url:
+        try:
+            url = await bot.export_chat_invite_link(chat_id)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            return None
+
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Guruhga qaytish", url=url)]])
+
+
+async def _start_game(bot: Bot, game: Game) -> None:
     assign_roles(game)
 
     for p in game.players.values():
         p.items = await db.get_enabled_items(p.user_id)
 
     try:
-        await callback.message.edit_text("🎮 O'yin boshlandi! Rollar shaxsiy xabarlarga yuborildi.")
+        await bot.edit_message_text(
+            "🎮 O'yin boshlandi! Rollar shaxsiy xabarlarga yuborildi.",
+            chat_id=game.chat_id,
+            message_id=game.lobby_message_id,
+        )
     except TelegramBadRequest:
         pass
 
+    group_kb = await _group_return_keyboard(bot, game.chat_id)
     for p in game.players.values():
         try:
-            await bot.send_message(p.user_id, build_role_message(p, game))
+            await bot.send_message(p.user_id, build_role_message(p, game), reply_markup=group_kb)
         except (TelegramForbiddenError, TelegramBadRequest):
             pass
 
     asyncio.create_task(run_game(bot, game))
 
 
-@router.callback_query(F.data == "lobby:cancel")
-async def on_cancel(callback: CallbackQuery) -> None:
-    game = manager.get_game(callback.message.chat.id)
-    if not game:
-        await callback.answer("O'yin topilmadi.")
-        return
-    if callback.from_user.id not in game.players:
-        await callback.answer("Faqat shu ro'yxatdagi qatnashuvchilar bekor qila oladi.", show_alert=True)
-        return
-
-    manager.remove_game(game.chat_id)
-    await callback.answer("Bekor qilindi.")
+async def _autostart_countdown(bot: Bot, game: Game) -> None:
     try:
-        await callback.message.edit_text("❌ O'yin bekor qilindi.")
-    except TelegramBadRequest:
+        await bot.send_message(
+            game.chat_id,
+            f"✅ Kamida {MIN_PLAYERS} o'yinchi yig'ildi! {LOBBY_AUTOSTART_DELAY} soniyadan so'ng o'yin "
+            "avtomatik boshlanadi (hali ham qo'shilishingiz mumkin).",
+        )
+    except (TelegramForbiddenError, TelegramBadRequest):
         pass
+
+    await asyncio.sleep(LOBBY_AUTOSTART_DELAY)
+
+    if manager.get_game(game.chat_id) is not game or game.state != GameState.LOBBY or game.starting:
+        return
+    game.starting = True
+    await _start_game(bot, game)

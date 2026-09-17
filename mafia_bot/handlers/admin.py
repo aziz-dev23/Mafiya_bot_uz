@@ -15,8 +15,9 @@ async def build_profile_view(
 ) -> tuple[str, InlineKeyboardMarkup]:
     await db.ensure_user(user_id, full_name, username)
     user_row = await db.get_user(user_id)
-    clan_row = await db.get_user_clan(user_id)
+    points = await db.points_summary(user_id)
     inventory_rows = await db.get_inventory(user_id)
+    inventory_by_key = {row["item_key"]: row for row in inventory_rows}
 
     lines = [
         f"👤 <b>{full_name}</b>",
@@ -25,34 +26,38 @@ async def build_profile_view(
         f"💵 Dollar: {user_row['dollars']}",
         f"💎 Olmos: {user_row['diamonds']}",
         f"🪙 Coin: {user_row['coins']}",
+        "",
+        f"🏅 Ball — kunlik: {points['daily']} | haftalik: {points['weekly']} | "
+        f"oylik: {points['monthly']} | jami: {points['total']}",
+        "",
+        "🎒 <b>Buyumlar:</b>",
     ]
-    if clan_row:
-        lines.append(f"🏰 Klan: {clan_row['name']} [{clan_row['tag']}] ({user_row['clan_role']})")
-    else:
-        lines.append("🏰 Klan: yo'q")
-
-    lines.append("")
-    lines.append("🎒 <b>Buyumlar</b> (bosib yoqing/o'chiring):")
-    if not inventory_rows:
-        lines.append("<i>(yo'q — Do'kon orqali sotib oling)</i>")
+    for key, item in ITEMS.items():
+        row = inventory_by_key.get(key)
+        count = row["count"] if row else 0
+        lines.append(f"{item['emoji']} {item['name']}: {count} ta")
 
     lines.append("")
     lines.append(f"🎮 O'yinlar: {user_row['games']} | 🏆 G'alabalar: {user_row['wins']}")
+    if inventory_rows:
+        lines.append("")
+        lines.append("⚙️ Buyumlarni yoqish/o'chirish uchun pastdagi tugmalarni bosing:")
 
     buttons = []
-    for row in inventory_rows:
-        item = ITEMS.get(row["item_key"])
-        if not item:
-            continue
-        state = "🟢" if row["enabled"] else "🔴"
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{state} {item['emoji']} {item['name']}: {row['count']} ta",
-                    callback_data=f"toggleitem_profile:{row['item_key']}",
-                )
-            ]
-        )
+    if inventory_rows:
+        for row in inventory_rows:
+            item = ITEMS.get(row["item_key"])
+            if not item:
+                continue
+            state = "🟢 ON" if row["enabled"] else "🔴 OFF"
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"{item['emoji']} {item['name']} · {state}",
+                        callback_data=f"toggleitem_profile:{row['item_key']}",
+                    )
+                ]
+            )
     buttons.append([InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="menu:back")])
 
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)

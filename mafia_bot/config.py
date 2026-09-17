@@ -10,8 +10,9 @@ MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "15"))
 NIGHT_DURATION = int(os.getenv("NIGHT_DURATION", "45"))
 DAWN_DURATION = int(os.getenv("DAWN_DURATION", "20"))
 REVENGE_DURATION = int(os.getenv("REVENGE_DURATION", "20"))
-DAY_DISCUSSION_DURATION = int(os.getenv("DAY_DISCUSSION_DURATION", "60"))
+DAY_DISCUSSION_DURATION = int(os.getenv("DAY_DISCUSSION_DURATION", "30"))
 VOTE_DURATION = int(os.getenv("VOTE_DURATION", "30"))
+LOBBY_AUTOSTART_DELAY = int(os.getenv("LOBBY_AUTOSTART_DELAY", "15"))
 
 DB_PATH = os.getenv("DB_PATH", "mafia.db")
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").replace(",", " ").split() if x.strip()}

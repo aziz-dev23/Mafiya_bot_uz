@@ -1,13 +1,10 @@
-from collections import Counter
-
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from game.models import Game
 
 
 def mention(player) -> str:
-    tag = f"[{player.clan_tag}] " if getattr(player, "clan_tag", None) else ""
-    return f'<a href="tg://user?id={player.user_id}">{tag}{player.full_name}</a>'
+    return f'<a href="tg://user?id={player.user_id}">{player.full_name}</a>'
 
 
 def build_target_keyboard(game: Game, exclude_ids: set[int], prefix: str) -> InlineKeyboardMarkup:
@@ -43,22 +40,3 @@ def build_vote_keyboard(game: Game) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def build_vote_tally_text(game: Game) -> str:
-    alive = [p for p in game.players.values() if p.alive]
-    lines = ["🗳 <b>Ovoz berish vaqti!</b>", "Kimni shahardan haydab chiqarmoqchisiz?", ""]
-
-    if not game.day_votes:
-        lines.append("Hali hech kim ovoz bermadi.")
-    else:
-        counts = Counter(v for v in game.day_votes.values() if v is not None)
-        skip_count = sum(1 for v in game.day_votes.values() if v is None)
-        for p in alive:
-            c = counts.get(p.user_id, 0)
-            if c:
-                lines.append(f"• {p.full_name}: {c} ovoz")
-        if skip_count:
-            lines.append(f"• Ovoz bermaslik: {skip_count}")
-
-    lines.append("")
-    lines.append(f"Ovoz berganlar: {len(game.day_votes)}/{len(alive)}")
-    return "\n".join(lines)

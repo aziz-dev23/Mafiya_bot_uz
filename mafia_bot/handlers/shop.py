@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER
-from economy import DIAMOND_PACKAGES
+from economy import DIAMOND_PACKAGES, DIAMOND_TO_DOLLAR_RATE
 
 router = Router(name="shop")
 
@@ -38,6 +38,50 @@ async def cmd_shop(message: Message) -> None:
         "💎 <b>OLMOS DO'KONI</b>\nKerakli paketni tanlang:",
         reply_markup=build_shop_keyboard(),
     )
+
+
+def build_exchange_keyboard() -> InlineKeyboardMarkup:
+    rows = []
+    for i in range(0, len(DIAMOND_PACKAGES), 2):
+        row = [
+            InlineKeyboardButton(
+                text=f"{amount}💎 → {amount * DIAMOND_TO_DOLLAR_RATE}💵",
+                callback_data=f"exchange:{amount}",
+            )
+            for amount, _ in DIAMOND_PACKAGES[i : i + 2]
+        ]
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.message(Command("almashtir", "exchange"))
+async def cmd_exchange(message: Message) -> None:
+    await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
+    await message.answer(
+        "💱 <b>OLMOSNI PULGA ALMASHTIRISH</b>\n"
+        f"Kurs: 1💎 = {DIAMOND_TO_DOLLAR_RATE}💵\n\nKerakli miqdorni tanlang:",
+        reply_markup=build_exchange_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("exchange:"))
+async def on_exchange(callback: CallbackQuery) -> None:
+    amount = int(callback.data.split(":")[1])
+    await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
+    user_row = await db.get_user(callback.from_user.id)
+    if user_row["diamonds"] < amount:
+        await callback.answer("Olmosingiz yetarli emas.", show_alert=True)
+        return
+
+    dollars = amount * DIAMOND_TO_DOLLAR_RATE
+    await db.add_balance(callback.from_user.id, diamonds=-amount, dollars=dollars)
+    await callback.answer(f"✅ {amount}💎 → {dollars}💵 almashtirildi.", show_alert=True)
+    try:
+        await callback.message.edit_text(
+            f"💱 <b>OLMOSNI PULGA ALMASHTIRISH</b>\n\n✅ {amount}💎 → {dollars}💵 hisobingizga qo'shildi."
+        )
+    except TelegramBadRequest:
+        pass
 
 
 @router.callback_query(F.data.startswith("shop:buy:"))

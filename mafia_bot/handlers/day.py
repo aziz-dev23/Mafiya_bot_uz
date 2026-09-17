@@ -4,7 +4,6 @@ from aiogram.types import CallbackQuery
 
 from game.manager import manager
 from game.models import GameState
-from utils import build_vote_tally_text
 
 router = Router(name="day")
 
@@ -28,17 +27,17 @@ async def on_vote(callback: CallbackQuery, bot: Bot) -> None:
         return
 
     game.day_votes[voter.user_id] = target_id
+    target_name = "Ovoz bermaslik" if target_id is None else game.players[target_id].full_name
     await callback.answer("Ovozingiz qabul qilindi ✅")
+    try:
+        await callback.message.edit_text(f"🗳 Siz tanladingiz: {target_name}")
+    except TelegramBadRequest:
+        pass
 
-    if game.vote_message_id:
-        try:
-            await bot.edit_message_text(
-                build_vote_tally_text(game),
-                chat_id=game.chat_id,
-                message_id=game.vote_message_id,
-            )
-        except TelegramBadRequest:
-            pass
+    if target_id is None:
+        await bot.send_message(game.chat_id, f"🔵 {voter.full_name} — ovoz bermaslikni tanladi.")
+    else:
+        await bot.send_message(game.chat_id, f"🔵 {voter.full_name} — {target_name}ga ovoz berdi.")
 
     if len(game.day_votes) >= game.vote_needed and game.vote_event:
         game.vote_event.set()

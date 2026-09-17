@@ -1,9 +1,9 @@
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
 import db
-from game.engine import night_all_done
+from game.engine import ROUND_TABLE_IMAGE_PATH, night_all_done, send_phase_image
 from game.manager import manager
 from game.models import GameState, Role
 from utils import build_mafia_kill_keyboard
@@ -12,7 +12,7 @@ router = Router(name="night")
 
 
 @router.callback_query(F.data.startswith("m_kill:"))
-async def on_mafia_kill(callback: CallbackQuery) -> None:
+async def on_mafia_kill(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -37,6 +37,9 @@ async def on_mafia_kill(callback: CallbackQuery) -> None:
         )
     except TelegramBadRequest:
         pass
+
+    if len(game.mafia_votes) == game.night_mafia_needed:
+        await send_phase_image(bot, game.chat_id, ROUND_TABLE_IMAGE_PATH, "round_table", "🔪 Mafiya o'ljasini tanladi.")
 
     if night_all_done(game) and game.night_event:
         game.night_event.set()
@@ -76,7 +79,7 @@ async def on_rifle_toggle(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("d_save:"))
-async def on_doctor_save(callback: CallbackQuery) -> None:
+async def on_doctor_save(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -93,6 +96,7 @@ async def on_doctor_save(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.doctor_acted
     game.doctor_target = target_id
     game.doctor_acted = True
     await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
@@ -101,12 +105,15 @@ async def on_doctor_save(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "💊 Doktor tungi navbatchilikka ketdi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("c_check:"))
-async def on_detective_check(callback: CallbackQuery) -> None:
+async def on_detective_check(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -123,6 +130,7 @@ async def on_detective_check(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.detective_acted
     game.detective_target = target_id
     game.detective_acted = True
 
@@ -144,12 +152,15 @@ async def on_detective_check(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "🕵️ Komissar tekshiruvini boshladi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("q_kill:"))
-async def on_killer_kill(callback: CallbackQuery) -> None:
+async def on_killer_kill(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -166,6 +177,7 @@ async def on_killer_kill(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.killer_acted
     game.killer_target = target_id
     game.killer_acted = True
     await callback.answer(f"Siz {target.full_name}ni tanladingiz.")
@@ -174,12 +186,15 @@ async def on_killer_kill(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "🔪 Qotil nishonini tanladi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("yq_kill:"))
-async def on_hitman_kill(callback: CallbackQuery) -> None:
+async def on_hitman_kill(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -196,6 +211,7 @@ async def on_hitman_kill(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.hitman_acted
     game.hitman_target = target_id
     game.hitman_acted = True
     await callback.answer(f"Siz {target.full_name}ni tanladingiz.")
@@ -204,12 +220,15 @@ async def on_hitman_kill(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "🥷 Yollanma qotil nishonini tanladi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("kez_dose:"))
-async def on_poisoner_dose(callback: CallbackQuery) -> None:
+async def on_poisoner_dose(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -226,6 +245,7 @@ async def on_poisoner_dose(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.poisoner_acted
     game.poisoner_acted = True
     if target.items.get("poison_shield", 0) > 0 and await db.consume_item(target.user_id, "poison_shield"):
         target.items["poison_shield"] -= 1
@@ -239,12 +259,15 @@ async def on_poisoner_dose(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "💊 Kezuvchi kimgadir dori berdi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("daydi_visit:"))
-async def on_wanderer_visit(callback: CallbackQuery) -> None:
+async def on_wanderer_visit(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -261,6 +284,7 @@ async def on_wanderer_visit(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.wanderer_acted
     game.wanderer_target = target_id
     game.wanderer_acted = True
     await callback.answer(f"Siz {target.full_name}ning oldiga bordingiz.")
@@ -269,12 +293,15 @@ async def on_wanderer_visit(callback: CallbackQuery) -> None:
     except TelegramBadRequest:
         pass
 
+    if first_time:
+        await bot.send_message(game.chat_id, "🚶 Daydi kimningdir oldiga bordi.")
+
     if night_all_done(game) and game.night_event:
         game.night_event.set()
 
 
 @router.callback_query(F.data.startswith("don_check:"))
-async def on_don_check(callback: CallbackQuery) -> None:
+async def on_don_check(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -303,6 +330,8 @@ async def on_don_check(callback: CallbackQuery) -> None:
         await callback.message.edit_text(f"🎩 Aniqlash natijasi: {target.full_name} — {result}")
     except TelegramBadRequest:
         pass
+
+    await bot.send_message(game.chat_id, "🎩 Don o'z tekshiruvini o'tkazdi.")
 
 
 @router.callback_query(F.data.startswith("hero_shot:"))
@@ -336,7 +365,7 @@ async def on_hero_shot(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("advokat_shield:"))
-async def on_advokat_shield(callback: CallbackQuery) -> None:
+async def on_advokat_shield(callback: CallbackQuery, bot: Bot) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
     if not game or game.state != GameState.NIGHT:
         await callback.answer("Hozir tun emas.", show_alert=True)
@@ -353,6 +382,7 @@ async def on_advokat_shield(callback: CallbackQuery) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    first_time = not game.advokat_acted
     game.advokat_target = target_id
     game.advokat_acted = True
     await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
@@ -360,6 +390,9 @@ async def on_advokat_shield(callback: CallbackQuery) -> None:
         await callback.message.edit_text(f"👨‍💼 Siz himoya qildingiz: {target.full_name}")
     except TelegramBadRequest:
         pass
+
+    if first_time:
+        await bot.send_message(game.chat_id, "👨‍💼 Advokat o'z himoyasini tayinladi.")
 
     if night_all_done(game) and game.night_event:
         game.night_event.set()

@@ -19,6 +19,19 @@ def build_store_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+QUANTITY_OPTIONS = (1, 3, 5, 10)
+
+
+def build_quantity_keyboard(key: str) -> InlineKeyboardMarkup:
+    row = [
+        InlineKeyboardButton(text=f"{qty} ta", callback_data=f"buyitem_qty:{key}:{qty}")
+        for qty in QUANTITY_OPTIONS
+    ]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[row, [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="buyitem_back")]]
+    )
+
+
 @router.message(Command("dokon", "items"))
 async def cmd_store(message: Message) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
@@ -40,20 +53,57 @@ async def on_buy_item(callback: CallbackQuery) -> None:
         await callback.answer("Bu buyum topilmadi.", show_alert=True)
         return
 
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            f"{item['emoji']} <b>{item['name']}</b> — {item['price']}{CURRENCY_EMOJI[item['currency']]}/dona\n\n"
+            "Nechta sotib olmoqchisiz?",
+            reply_markup=build_quantity_keyboard(key),
+        )
+    except TelegramBadRequest:
+        pass
+
+
+@router.callback_query(F.data == "buyitem_back")
+async def on_buy_item_back(callback: CallbackQuery) -> None:
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            "🎒 <b>BUYUMLAR DO'KONI</b>\n"
+            "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
+            "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi.\n\n"
+            "Kerakli buyumni tanlang:",
+            reply_markup=build_store_keyboard(),
+        )
+    except TelegramBadRequest:
+        pass
+
+
+@router.callback_query(F.data.startswith("buyitem_qty:"))
+async def on_buy_item_qty(callback: CallbackQuery) -> None:
+    _, key, qty_str = callback.data.split(":")
+    qty = int(qty_str)
+    item = ITEMS.get(key)
+    if not item:
+        await callback.answer("Bu buyum topilmadi.", show_alert=True)
+        return
+
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
     user_row = await db.get_user(callback.from_user.id)
     col = CURRENCY_COLUMN[item["currency"]]
-    if user_row[col] < item["price"]:
+    total_price = item["price"] * qty
+    if user_row[col] < total_price:
         await callback.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[item['currency']]} yo'q.", show_alert=True)
         return
 
-    await db.add_balance(callback.from_user.id, **{col: -item["price"]})
-    await db.add_item(callback.from_user.id, key, 1)
+    await db.add_balance(callback.from_user.id, **{col: -total_price})
+    await db.add_item(callback.from_user.id, key, qty)
 
-    await callback.answer(f"✅ {item['emoji']} {item['name']} sotib olindi!")
+    await callback.answer(f"✅ {qty} ta {item['emoji']} {item['name']} sotib olindi!")
     try:
         await callback.message.edit_text(
-            callback.message.text + f"\n\n✅ Xarid qilindi: {item['emoji']} {item['name']}"
+            f"✅ Xarid qilindi: {qty} ta {item['emoji']} {item['name']} "
+            f"(-{total_price}{CURRENCY_EMOJI[item['currency']]})"
         )
     except TelegramBadRequest:
         pass

@@ -1,22 +1,6 @@
 import db
 from game.models import Game, Role
-
-# NOTE: exact XP-per-level thresholds and per-game payout amounts are not
-# specified anywhere the bot was given as a source — these are reasonable
-# defaults, tune freely via this file.
-LEVEL_XP_THRESHOLDS = {1: 0, 2: 100, 3: 300, 4: 700, 5: 1500}
-LEVEL_CAPACITY = {1: 10, 2: 15, 3: 20, 4: 25, 5: 30}
-LEVEL_BONUS_PCT = {1: 0, 2: 5, 3: 10, 4: 15, 5: 25}
-LEVEL_NAMES = {
-    1: "Boshlang'ich oila",
-    2: "Tashkiliy to'da",
-    3: "Sitsiliya sindikati",
-    4: "Bosh mafiya ittifoqi",
-    5: "Afsonaviy Kamorra",
-}
-
-CLAN_CREATE_COST_DIAMONDS = 30
-CLAN_CREATE_COST_DOLLARS = 50_000
+from texts import ROLE_NAMES
 
 # (olmos miqdori, narxi so'mda) — o'zingizga mos narxlarni shu yerda o'zgartiring
 DIAMOND_PACKAGES = [
@@ -32,13 +16,22 @@ DIAMOND_PACKAGES = [
     (2000, 1_400_000),
 ]
 
-DOLLARS_WIN_ALIVE = 1000
-DOLLARS_WIN_DEAD = 400
-DOLLARS_LOSE = 150
+DOLLARS_WIN_MAFIA = 35
+DOLLARS_WIN_OTHER = 20
+DOLLARS_LOSE = 25
 DETECTIVE_BONUS_DOLLARS = 200
 KILLER_SOLO_WIN_DOLLARS = 5000
 HITMAN_CONTRACT_BONUS_DOLLARS = 2000
-MINER_SLIP_CHANCE = 0.20
+
+# 1 olmos qanchaga (Dollarga) almashtirilishini belgilaydi (/almashtir buyrug'i).
+DIAMOND_TO_DOLLAR_RATE = 250
+
+# Ball (ochko) tizimi — kunlik/haftalik/oylik reyting shu ballar asosida hisoblanadi.
+POINTS_WIN = 10
+POINTS_LOSE = 3
+POINTS_TOP_BONUS = 50
+POINTS_TOP_BONUS_COUNT = 3
+POINTS_BIG_GAME_MIN_PLAYERS = 10
 
 # Bosqich 1 buyumlari — Mafiya/Doktor/Komissar/Tinch aholi bilan ishlaydiganlar.
 ITEMS = {
@@ -51,7 +44,6 @@ ITEMS = {
     "killer_shield": {"name": "Qotildan himoya", "emoji": "⛑", "price": 2, "currency": "diamond"},
     "poison_shield": {"name": "Doridan himoya", "emoji": "💊", "price": 100, "currency": "dollar"},
     "mask": {"name": "Maska", "emoji": "🎭", "price": 100, "currency": "dollar"},
-    "miner_shield": {"name": "Sirpanishdan himoya", "emoji": "🪤", "price": 300, "currency": "dollar"},
     "hero_shot": {"name": "Geroy", "emoji": "🥷", "price": 90, "currency": "diamond"},
     "hero_immunity": {"name": "Geroydan himoya", "emoji": "🔰", "price": 5, "currency": "diamond"},
 }
@@ -82,23 +74,7 @@ def parse_currency(token: str) -> str | None:
     return CURRENCY_ALIASES.get(token.lower())
 
 
-def clan_level(xp: int) -> int:
-    level = 1
-    for lvl, threshold in sorted(LEVEL_XP_THRESHOLDS.items()):
-        if xp >= threshold:
-            level = lvl
-    return level
-
-
-def clan_capacity(level: int) -> int:
-    return LEVEL_CAPACITY.get(level, LEVEL_CAPACITY[5])
-
-
-def clan_bonus_pct(level: int) -> int:
-    return LEVEL_BONUS_PCT.get(level, LEVEL_BONUS_PCT[5])
-
-
-MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON)
+MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER)
 
 
 def _did_win(role: Role, winner: str) -> bool:
@@ -110,25 +86,40 @@ def _did_win(role: Role, winner: str) -> bool:
     return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
 
 
-async def payout_game_results(game: Game, winner: str) -> list[str]:
-    lines: list[str] = []
+def _top_bonus_ids(game: Game, winner: str) -> set[int]:
+    """>10 o'yinchili o'yinlarda g'olib bo'lgan (afzalroq — tirik qolgan) top-3ga 50 balldan beriladi."""
+    if len(game.players) <= POINTS_BIG_GAME_MIN_PLAYERS:
+        return set()
+    winners = [p for p in game.players.values() if _did_win(p.role, winner)]
+    ordered = sorted(winners, key=lambda p: not p.alive)
+    return {p.user_id for p in ordered[:POINTS_TOP_BONUS_COUNT]}
+
+
+async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
+    """Har bir o'yinchi uchun (user_id, shaxsiy natija xabari) qaytaradi — guruhga emas,
+    faqat o'sha o'yinchining o'ziga yuboriladi."""
+    private_messages: list[tuple[int, str]] = []
+    top_bonus_ids = _top_bonus_ids(game, winner)
+
     for p in game.players.values():
         won = _did_win(p.role, winner)
+        points = (POINTS_TOP_BONUS if p.user_id in top_bonus_ids else POINTS_WIN) if won else POINTS_LOSE
+        status = "🟢 tirik" if p.alive else "⚰️ halok"
 
         if winner == "killer" and p.role == Role.KILLER:
             total = KILLER_SOLO_WIN_DOLLARS
             await db.add_balance(p.user_id, dollars=total)
             await db.record_game_result(p.user_id, won)
-            lines.append(f"• {p.full_name}: +{total}💵 (🔪 yakka g'alaba!)")
+            await db.add_points(p.user_id, points)
+            text = (
+                f"🎭 Rolingiz: {ROLE_NAMES[p.role]} ({status})\n\n"
+                f"🔪 Siz yakka o'zingiz g'alaba qozondingiz!\n"
+                f"💰 +{total}💵  🏅 +{points} ball"
+            )
+            private_messages.append((p.user_id, text))
             continue
 
-        base = (DOLLARS_WIN_ALIVE if p.alive else DOLLARS_WIN_DEAD) if won else DOLLARS_LOSE
-
-        bonus_pct = 0
-        clan_row = await db.get_user_clan(p.user_id)
-        if clan_row:
-            bonus_pct = clan_bonus_pct(clan_level(clan_row["xp"]))
-        total = base + (base * bonus_pct // 100)
+        total = DOLLARS_WIN_MAFIA if won and p.role in MAFIA_TEAM_ROLES else (DOLLARS_WIN_OTHER if won else DOLLARS_LOSE)
 
         detective_bonus = 0
         if p.role == Role.DETECTIVE and getattr(game, "detective_correct", False):
@@ -137,12 +128,18 @@ async def payout_game_results(game: Game, winner: str) -> list[str]:
 
         await db.add_balance(p.user_id, dollars=total)
         await db.record_game_result(p.user_id, won)
+        await db.add_points(p.user_id, points)
 
         notes = []
-        if bonus_pct:
-            notes.append("klan bonusi")
         if detective_bonus:
             notes.append(f"🕵️ komissar bonusi +{detective_bonus}💵")
         note = f" ({', '.join(notes)})" if notes else ""
-        lines.append(f"• {p.full_name}: +{total}💵{note}")
-    return lines
+
+        outcome_line = "🏆 Siz g'alaba qozondingiz!" if won else "💀 Siz mag'lub bo'ldingiz."
+        text = (
+            f"🎭 Rolingiz: {ROLE_NAMES[p.role]} ({status})\n\n"
+            f"{outcome_line}\n"
+            f"💰 +{total}💵  🏅 +{points} ball{note}"
+        )
+        private_messages.append((p.user_id, text))
+    return private_messages

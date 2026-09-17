@@ -21,20 +21,13 @@ async def init_db() -> None:
             diamonds INTEGER NOT NULL DEFAULT 0,
             coins INTEGER NOT NULL DEFAULT 0,
             wins INTEGER NOT NULL DEFAULT 0,
-            games INTEGER NOT NULL DEFAULT 0,
-            clan_id INTEGER,
-            clan_role TEXT
+            games INTEGER NOT NULL DEFAULT 0
         );
 
-        CREATE TABLE IF NOT EXISTS clans (
-            clan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            tag TEXT NOT NULL UNIQUE,
-            owner_id INTEGER NOT NULL,
-            motto TEXT NOT NULL DEFAULT '',
-            xp INTEGER NOT NULL DEFAULT 0,
-            treasury_dollars INTEGER NOT NULL DEFAULT 0,
-            treasury_diamonds INTEGER NOT NULL DEFAULT 0,
+        CREATE TABLE IF NOT EXISTS points_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            points INTEGER NOT NULL,
             created_at INTEGER NOT NULL
         );
 
@@ -134,107 +127,46 @@ async def record_game_result(user_id: int, won: bool) -> None:
     await _conn.commit()
 
 
-async def get_clan(clan_id: int) -> aiosqlite.Row | None:
-    cur = await _conn.execute("SELECT * FROM clans WHERE clan_id = ?", (clan_id,))
-    row = await cur.fetchone()
-    await cur.close()
-    return row
-
-
-async def get_clan_by_name_or_tag(value: str) -> aiosqlite.Row | None:
-    cur = await _conn.execute(
-        "SELECT * FROM clans WHERE name = ? COLLATE NOCASE OR tag = ? COLLATE NOCASE",
-        (value, value),
+async def add_points(user_id: int, points: int) -> None:
+    await _conn.execute(
+        "INSERT INTO points_log (user_id, points, created_at) VALUES (?, ?, ?)",
+        (user_id, points, int(time.time())),
     )
-    row = await cur.fetchone()
-    await cur.close()
-    return row
+    await _conn.commit()
 
 
-async def get_user_clan(user_id: int) -> aiosqlite.Row | None:
+async def points_summary(user_id: int) -> dict[str, int]:
+    now = int(time.time())
     cur = await _conn.execute(
-        "SELECT clans.* FROM clans JOIN users ON users.clan_id = clans.clan_id WHERE users.user_id = ?",
-        (user_id,),
+        "SELECT "
+        "COALESCE(SUM(CASE WHEN created_at >= ? THEN points END), 0) AS daily, "
+        "COALESCE(SUM(CASE WHEN created_at >= ? THEN points END), 0) AS weekly, "
+        "COALESCE(SUM(CASE WHEN created_at >= ? THEN points END), 0) AS monthly, "
+        "COALESCE(SUM(points), 0) AS total "
+        "FROM points_log WHERE user_id = ?",
+        (now - 86_400, now - 7 * 86_400, now - 30 * 86_400, user_id),
     )
     row = await cur.fetchone()
     await cur.close()
-    return row
+    return {"daily": row["daily"], "weekly": row["weekly"], "monthly": row["monthly"], "total": row["total"]}
 
 
-async def create_clan(name: str, tag: str, owner_id: int) -> int:
-    cur = await _conn.execute(
-        "INSERT INTO clans (name, tag, owner_id, created_at) VALUES (?, ?, ?, ?)",
-        (name, tag, owner_id, int(time.time())),
-    )
-    clan_id = cur.lastrowid
-    await _conn.execute(
-        "UPDATE users SET clan_id = ?, clan_role = 'don' WHERE user_id = ?",
-        (clan_id, owner_id),
-    )
-    await _conn.commit()
-    return clan_id
-
-
-async def add_member(clan_id: int, user_id: int, role: str = "member") -> None:
-    await _conn.execute(
-        "UPDATE users SET clan_id = ?, clan_role = ? WHERE user_id = ?",
-        (clan_id, role, user_id),
-    )
-    await _conn.commit()
-
-
-async def remove_member(user_id: int) -> None:
-    await _conn.execute(
-        "UPDATE users SET clan_id = NULL, clan_role = NULL WHERE user_id = ?",
-        (user_id,),
-    )
-    await _conn.commit()
-
-
-async def set_role(user_id: int, role: str) -> None:
-    await _conn.execute("UPDATE users SET clan_role = ? WHERE user_id = ?", (role, user_id))
-    await _conn.commit()
-
-
-async def clan_members(clan_id: int) -> list[aiosqlite.Row]:
-    cur = await _conn.execute(
-        "SELECT * FROM users WHERE clan_id = ? "
-        "ORDER BY CASE clan_role WHEN 'don' THEN 0 WHEN 'deputy' THEN 1 ELSE 2 END, full_name",
-        (clan_id,),
-    )
-    rows = await cur.fetchall()
-    await cur.close()
-    return rows
-
-
-async def clan_member_count(clan_id: int) -> int:
-    cur = await _conn.execute("SELECT COUNT(*) AS c FROM users WHERE clan_id = ?", (clan_id,))
-    row = await cur.fetchone()
-    await cur.close()
-    return row["c"]
-
-
-async def donate_to_clan(user_id: int, clan_id: int, dollars: int, diamonds: int, xp: int) -> None:
-    await _conn.execute(
-        "UPDATE users SET dollars = dollars - ?, diamonds = diamonds - ? WHERE user_id = ?",
-        (dollars, diamonds, user_id),
-    )
-    await _conn.execute(
-        "UPDATE clans SET treasury_dollars = treasury_dollars + ?, "
-        "treasury_diamonds = treasury_diamonds + ?, xp = xp + ? WHERE clan_id = ?",
-        (dollars, diamonds, xp, clan_id),
-    )
-    await _conn.commit()
-
-
-async def disband_clan(clan_id: int) -> None:
-    await _conn.execute("UPDATE users SET clan_id = NULL, clan_role = NULL WHERE clan_id = ?", (clan_id,))
-    await _conn.execute("DELETE FROM clans WHERE clan_id = ?", (clan_id,))
-    await _conn.commit()
-
-
-async def top_clans(limit: int = 10) -> list[aiosqlite.Row]:
-    cur = await _conn.execute("SELECT * FROM clans ORDER BY xp DESC LIMIT ?", (limit,))
+async def top_points(since: int | None = None, limit: int = 10) -> list[aiosqlite.Row]:
+    """Reyting: `since` bo'lsa shu unix-vaqtdan beri, aks holda umumiy ball bo'yicha TOP."""
+    if since is None:
+        cur = await _conn.execute(
+            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
+            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
+            "GROUP BY points_log.user_id ORDER BY total DESC LIMIT ?",
+            (limit,),
+        )
+    else:
+        cur = await _conn.execute(
+            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
+            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
+            "WHERE points_log.created_at >= ? GROUP BY points_log.user_id ORDER BY total DESC LIMIT ?",
+            (since, limit),
+        )
     rows = await cur.fetchall()
     await cur.close()
     return rows
