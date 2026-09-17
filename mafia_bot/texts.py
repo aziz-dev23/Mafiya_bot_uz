@@ -2,7 +2,7 @@ from game.models import Role
 
 ROLE_NAMES = {
     Role.MAFIA: "🔪 Mafiya",
-    Role.DON: "🎩 Don",
+    Role.DON: "🤵🏻 Don",
     Role.KILLER: "🔪 Qotil",
     Role.HITMAN: "🥷 Yollanma qotil",
     Role.DOCTOR: "💊 Doktor",
@@ -20,7 +20,9 @@ ROLE_DESCRIPTIONS = {
     Role.MAFIA: (
         "Siz — <b>Mafiya</b> a'zosisiz. Har kecha sheriklaringiz bilan birga "
         "shahar aholisidan birini yo'q qilasiz.\nMaqsad: tinch aholi sonini "
-        "mafiyaga teng yoki undan kam qilib qo'yish."
+        "mafiyaga teng yoki undan kam qilib qo'yish.\n\n"
+        "🤵🏻 Donga bo'ysunasiz. Agar Don halok bo'lsa, sizlardan biri "
+        "tasodifiy tarzda yangi Don bo'ladi."
     ),
     Role.DON: (
         "Siz — Mafiyaning <b>Doni</b>siz. Sheriklaringiz bilan birga har kecha "

@@ -20,22 +20,21 @@ router = Router(name="lobby")
 def build_lobby_text(game: Game) -> str:
     names = ", ".join(mention(p) for p in game.players.values()) or "—"
     lines = [
+        "🎭 <b>Mafiya Gamer's</b>",
+        "",
         "<b>Ro'yxatdan o'tish boshlandi</b>",
         "",
         "Ro'yxatdan o'tganlar:",
         names,
         "",
         f"Jami {len(game.players)}ta odam.",
-        "",
-        f"Kamida {MIN_PLAYERS} kishi yig'ilishi bilan o'yin {LOBBY_AUTOSTART_DELAY} soniyadan so'ng "
-        f"avtomatik boshlanadi (max {MAX_PLAYERS} kishi).\nBekor qilish uchun: /stop",
     ]
     return "\n".join(lines)
 
 
 def build_lobby_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🕴 Qo'shilish", callback_data="lobby:join")]]
+        inline_keyboard=[[InlineKeyboardButton(text="🤵‍♂️🤵‍♀️ Qo'shilish", callback_data="lobby:join")]]
     )
 
 

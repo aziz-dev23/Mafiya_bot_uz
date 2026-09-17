@@ -3,7 +3,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
 import db
-from game.engine import ROUND_TABLE_IMAGE_PATH, night_all_done, send_phase_image
+from game.engine import night_all_done
 from game.manager import manager
 from game.models import GameState, Role
 from utils import build_mafia_kill_keyboard
@@ -39,7 +39,7 @@ async def on_mafia_kill(callback: CallbackQuery, bot: Bot) -> None:
         pass
 
     if len(game.mafia_votes) == game.night_mafia_needed:
-        await send_phase_image(bot, game.chat_id, ROUND_TABLE_IMAGE_PATH, "round_table", "🔪 Mafiya o'ljasini tanladi.")
+        await bot.send_message(game.chat_id, "🔪 Mafiya o'ljasini tanladi.")
 
     if night_all_done(game) and game.night_event:
         game.night_event.set()

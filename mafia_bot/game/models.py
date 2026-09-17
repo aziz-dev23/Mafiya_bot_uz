@@ -37,6 +37,7 @@ class Player:
     alive: bool = True
     items: dict[str, int] = field(default_factory=dict)
     contract_target: int | None = None
+    shield_used: bool = False
 
 
 @dataclass
@@ -50,6 +51,7 @@ class Game:
     task: "asyncio.Task | None" = None
     autostart_scheduled: bool = False
     starting: bool = False
+    started_at: float = 0.0
 
     # night phase state
     mafia_votes: dict[int, int] = field(default_factory=dict)

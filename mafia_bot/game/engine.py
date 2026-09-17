@@ -22,7 +22,7 @@ from utils import (
 )
 
 from .manager import manager
-from .models import Game, GameState, Role
+from .models import Game, GameState, Player, Role
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,22 @@ async def _safe_send_replace(bot: Bot, game: Game, user_id: int, text: str, **kw
     game.last_action_msg[user_id] = msg.message_id
 
 
+async def _kill_player(bot: Bot, game: Game, player: Player) -> None:
+    """O'yinchini halok qiladi; agar u Don bo'lsa, tirik mafiyalardan biri yangi Don bo'ladi."""
+    player.alive = False
+    if player.role != Role.DON:
+        return
+
+    successors = [p for p in game.players.values() if p.alive and p.role == Role.MAFIA]
+    if not successors:
+        return
+    new_don = random.choice(successors)
+    new_don.role = Role.DON
+    await _safe_send(
+        bot, new_don.user_id, "🤵🏻 Don halok bo'ldi! Mafiya jamoasi ichida endi siz — yangi Donsiz."
+    )
+
+
 def check_win(game: Game) -> str | None:
     alive_players = [p for p in game.players.values() if p.alive]
     if len(alive_players) == 1 and alive_players[0].role == Role.KILLER:
@@ -160,7 +176,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
         del game.pending_poison[victim_id]
         victim = game.players.get(victim_id)
         if victim and victim.alive:
-            victim.alive = False
+            await _kill_player(bot, game, victim)
             tonight_deaths.add(victim.user_id)
             await bot.send_message(
                 game.chat_id,
@@ -300,7 +316,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
             alive_mafia_ids = [p.user_id for p in game.players.values() if p.alive and p.role in MAFIA_TEAM_ROLES]
             if alive_mafia_ids:
                 bounced = game.players[random.choice(alive_mafia_ids)]
-                bounced.alive = False
+                await _kill_player(bot, game, bounced)
                 tonight_deaths.add(bounced.user_id)
                 await _safe_send(bot, victim.user_id, "🔮 Sehrli oynangiz o'qni qaytardi! Siz omon qoldingiz.")
                 await bot.send_message(
@@ -322,11 +338,17 @@ async def night_phase(bot: Bot, game: Game) -> None:
     if not mafia_resolved and victim_id is not None:
         victim = game.players[victim_id]
 
-        if not rifle_used and victim.items.get("shield", 0) > 0 and await db.consume_item(victim.user_id, "shield"):
+        if (
+            not rifle_used
+            and not victim.shield_used
+            and victim.items.get("shield", 0) > 0
+            and await db.consume_item(victim.user_id, "shield")
+        ):
             victim.items["shield"] -= 1
-            await _safe_send(bot, victim.user_id, "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi!")
+            victim.shield_used = True
+            await _safe_send(bot, victim.user_id, "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi! (bu o'yinda yana ishlamaydi)")
         else:
-            victim.alive = False
+            await _kill_player(bot, game, victim)
             tonight_deaths.add(victim.user_id)
             await bot.send_message(
                 game.chat_id,
@@ -338,7 +360,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
                 drag_pool = [p for p in game.players.values() if p.alive and p.role in MAFIA_TEAM_ROLES]
                 if drag_pool:
                     dragged = random.choice(drag_pool)
-                    dragged.alive = False
+                    await _kill_player(bot, game, dragged)
                     tonight_deaths.add(dragged.user_id)
                     await bot.send_message(
                         game.chat_id,
@@ -354,7 +376,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
             if kvictim.items.get("killer_shield", 0) > 0:
                 await _safe_send(bot, kvictim.user_id, "⛑ Qotildan himoyangiz sizni saqlab qoldi!")
             else:
-                kvictim.alive = False
+                await _kill_player(bot, game, kvictim)
                 tonight_deaths.add(kvictim.user_id)
                 await bot.send_message(
                     game.chat_id,
@@ -370,7 +392,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
             if hvictim.items.get("killer_shield", 0) > 0:
                 await _safe_send(bot, hvictim.user_id, "⛑ Qotildan himoyangiz sizni saqlab qoldi!")
             else:
-                hvictim.alive = False
+                await _kill_player(bot, game, hvictim)
                 tonight_deaths.add(hvictim.user_id)
                 await bot.send_message(
                     game.chat_id,
@@ -443,7 +465,7 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
             target.items["hero_immunity"] -= 1
             continue
 
-        target.alive = False
+        await _kill_player(bot, game, target)
         await bot.send_message(
             game.chat_id,
             f"🥷 Tong otishi: <b>{mention(target)}</b> halok bo'ldi.\n"
@@ -471,7 +493,7 @@ async def _resolve_sorcerer_revenge(bot: Bot, game: Game, sorcerer) -> None:
     if game.revenge_target is not None:
         target = game.players.get(game.revenge_target)
         if target and target.alive:
-            target.alive = False
+            await _kill_player(bot, game, target)
             await bot.send_message(
                 game.chat_id,
                 f"🧞‍♂️ Afsungarning o'chi: <b>{mention(target)}</b> ham halok bo'ldi!\n"
@@ -541,7 +563,7 @@ async def day_phase(bot: Bot, game: Game) -> None:
                     )
                     return
 
-                eliminated.alive = False
+                await _kill_player(bot, game, eliminated)
                 await bot.send_message(
                     game.chat_id,
                     f"⚖️ Shahar ovoz berdi: <b>{mention(eliminated)}</b> haydab "
@@ -553,6 +575,14 @@ async def day_phase(bot: Bot, game: Game) -> None:
                 return
 
     await bot.send_message(game.chat_id, "⚖️ Ovozlar teng bo'ldi yoki hech kim ovoz bermadi — bugun hech kim haydalmadi.")
+
+
+def _is_winner_role(role: Role, winner: str) -> bool:
+    if winner == "killer":
+        return role == Role.KILLER
+    if winner == "mafia":
+        return role in MAFIA_TEAM_ROLES
+    return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
 
 
 async def finish_game(bot: Bot, game: Game, winner: str) -> None:
@@ -568,12 +598,27 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     for user_id, text in private_messages:
         await _safe_send(bot, user_id, f"🏁 <b>O'yin tugadi!</b>\n\n{result_text}\n\n{text}")
 
-    lines = ["🏁 <b>O'YIN TUGADI</b>", "", result_text, ""]
+    winners = [p for p in game.players.values() if _is_winner_role(p.role, winner)]
+    losers = [p for p in game.players.values() if not _is_winner_role(p.role, winner)]
 
-    lines.append("👥 <b>Barcha ishtirokchilar va rollari:</b>")
-    for p in game.players.values():
-        status = "🟢 tirik" if p.alive else "⚰️ halok"
-        lines.append(f"• {p.full_name} — {ROLE_NAMES[p.role]} ({status})")
+    lines = ["🏁 <b>O'yin tugadi!</b>", "", result_text, ""]
+
+    idx = 1
+    lines.append("<b>G'oliblar:</b>")
+    for p in winners:
+        lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}")
+        idx += 1
+
+    if losers:
+        lines.append("")
+        lines.append("<b>Qolgan o'yinchilar:</b>")
+        for p in losers:
+            lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}")
+            idx += 1
+
+    elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0
+    lines.append("")
+    lines.append(f"⏱ O'yin: {elapsed_min} daqiqa davom etdi")
 
     top_rows = await db.top_points(since=int(time.time()) - 86_400, limit=10)
     if top_rows:
@@ -590,6 +635,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
 
 async def run_game(bot: Bot, game: Game) -> None:
     game.task = asyncio.current_task()
+    game.started_at = time.time()
     try:
         while True:
             game.day_number += 1
