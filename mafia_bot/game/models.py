@@ -96,3 +96,7 @@ class Game:
     day_votes: dict[int, int | None] = field(default_factory=dict)
     vote_needed: int = 0
     vote_event: "asyncio.Event | None" = None
+
+    # har bir o'yinchiga yuborilgan oxirgi shaxsiy so'rov xabari (yangisi yuborilishidan
+    # oldin shu xabar o'chiriladi — shaxsiy chatda eski tugmalar to'planib qolmasligi uchun)
+    last_action_msg: dict[int, int] = field(default_factory=dict)

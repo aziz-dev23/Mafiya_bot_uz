@@ -12,30 +12,30 @@ from game.manager import manager
 from game.models import Game, GameState, Player, Role
 from game.roles import assign_roles
 from texts import ROLE_DESCRIPTIONS, ROLE_NAMES
+from utils import mention
 
 router = Router(name="lobby")
 
 
 def build_lobby_text(game: Game) -> str:
+    names = ", ".join(mention(p) for p in game.players.values()) or "—"
     lines = [
-        "🎲 <b>Yangi Mafiya o'yini!</b>",
-        f"👥 Qatnashuvchilar: {len(game.players)}/{MAX_PLAYERS} (kamida {MIN_PLAYERS} kerak)",
+        "<b>Ro'yxatdan o'tish boshlandi</b>",
         "",
+        "Ro'yxatdan o'tganlar:",
+        names,
+        "",
+        f"Jami {len(game.players)}ta odam.",
+        "",
+        f"Kamida {MIN_PLAYERS} kishi yig'ilishi bilan o'yin {LOBBY_AUTOSTART_DELAY} soniyadan so'ng "
+        f"avtomatik boshlanadi (max {MAX_PLAYERS} kishi).\nBekor qilish uchun: /stop",
     ]
-    for i, p in enumerate(game.players.values(), 1):
-        lines.append(f"{i}. {p.full_name}")
-    lines.append("")
-    lines.append(
-        f"Qo'shilish uchun pastdagi tugmani bosing 👇\nKamida {MIN_PLAYERS} kishi yig'ilishi bilan "
-        f"o'yin {LOBBY_AUTOSTART_DELAY} soniyadan so'ng avtomatik boshlanadi.\n"
-        "Bekor qilish uchun: /stop"
-    )
     return "\n".join(lines)
 
 
 def build_lobby_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="➕ Qo'shilish", callback_data="lobby:join")]]
+        inline_keyboard=[[InlineKeyboardButton(text="🕴 Qo'shilish", callback_data="lobby:join")]]
     )
 
 
