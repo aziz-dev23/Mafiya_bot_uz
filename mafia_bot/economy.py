@@ -3,17 +3,19 @@ from game.models import Game, Role
 from texts import ROLE_NAMES
 
 # (olmos miqdori, narxi so'mda) — o'zingizga mos narxlarni shu yerda o'zgartiring
+# Baza narx: 1💎 = 990 so'm. Katta paketlarda skidka: 799💎 -10%, 899💎 -15%, 999💎 -20%.
+# (Dastlab so'ralgan 10/20/30% variantda 999💎 paketi 799/899💎dan arzonroq chiqib qolardi —
+# katta paket har doim ko'proq to'lansin degan mantiqni saqlab qolish uchun foizlar pasaytirildi.)
+DIAMOND_PRICE_SOM = 990
 DIAMOND_PACKAGES = [
-    (1, 1_350),
-    (5, 6_500),
-    (10, 12_500),
-    (15, 18_000),
-    (30, 34_500),
-    (50, 55_000),
-    (200, 200_000),
-    (500, 450_000),
-    (1000, 800_000),
-    (2000, 1_400_000),
+    (1, 990),
+    (5, 4_950),
+    (10, 9_900),
+    (30, 29_000),
+    (50, 49_000),
+    (799, 711_000),
+    (899, 756_000),
+    (999, 790_000),
 ]
 
 DOLLARS_WIN_MAFIA = 35
@@ -44,9 +46,18 @@ ITEMS = {
     "killer_shield": {"name": "Qotildan himoya", "emoji": "⛑", "price": 2, "currency": "diamond"},
     "poison_shield": {"name": "Doridan himoya", "emoji": "💊", "price": 100, "currency": "dollar"},
     "mask": {"name": "Maska", "emoji": "🎭", "price": 100, "currency": "dollar"},
-    "hero_shot": {"name": "Geroy", "emoji": "🥷", "price": 90, "currency": "diamond"},
     "hero_immunity": {"name": "Geroydan himoya", "emoji": "🔰", "price": 5, "currency": "diamond"},
 }
+
+# Geroy — do'kondagi oddiy buyum emas, /geroy orqali sotib olinadigan doimiy profil buyumi.
+# Bir marta sotib olingach umrbod profilda qoladi, keyin darajasini cheksiz oshirish mumkin.
+HERO_BUY_PRICE_DIAMONDS = 249
+HERO_LEVEL_UP_PRICE_DIAMONDS = 100
+HERO_BYPASS_LEVEL = 10
+# Faqat shu rollarda bo'lgan Geroy egasi tongda zarba berish huquqiga ega.
+HERO_ELIGIBLE_ROLES = (Role.MAFIA, Role.DON, Role.DETECTIVE)
+# Eski (endi bekor qilingan) hero_shot buyumi narxi — mavjud zaxiralarni qaytarish uchun.
+LEGACY_HERO_SHOT_REFUND_DIAMONDS = 90
 
 # Bir o'yin ichida cheksiz marta ishlaydigan (sarflanmaydigan) buyumlar.
 UNLIMITED_ITEMS = {"killer_shield"}

@@ -58,10 +58,35 @@ async def init_db() -> None:
             enabled INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (user_id, item_key)
         );
+
+        CREATE TABLE IF NOT EXISTS hero (
+            user_id INTEGER PRIMARY KEY,
+            level INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
     await _conn.commit()
     await _ensure_column("users", "coins", "coins INTEGER NOT NULL DEFAULT 0")
+    await _refund_legacy_hero_shot_items()
+
+
+async def _refund_legacy_hero_shot_items() -> None:
+    """Bir martalik migratsiya: bekor qilingan hero_shot buyumi zaxiralarini olmosga qaytaradi.
+    Ikkinchi marta ishga tushganda count allaqachon 0 bo'lgani uchun hech narsa qilmaydi."""
+    cur = await _conn.execute("SELECT user_id, count FROM inventory WHERE item_key = 'hero_shot' AND count > 0")
+    rows = await cur.fetchall()
+    await cur.close()
+    if not rows:
+        return
+    for row in rows:
+        refund = row["count"] * 90
+        await _conn.execute(
+            "UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (refund, row["user_id"])
+        )
+        await _conn.execute(
+            "UPDATE inventory SET count = 0 WHERE user_id = ? AND item_key = 'hero_shot'", (row["user_id"],)
+        )
+    await _conn.commit()
 
 
 async def _ensure_column(table: str, column: str, ddl: str) -> None:
@@ -170,6 +195,22 @@ async def top_points(since: int | None = None, limit: int = 10) -> list[aiosqlit
     rows = await cur.fetchall()
     await cur.close()
     return rows
+
+
+async def get_hero_level(user_id: int) -> int:
+    cur = await _conn.execute("SELECT level FROM hero WHERE user_id = ?", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["level"] if row else 0
+
+
+async def set_hero_level(user_id: int, level: int) -> None:
+    await _conn.execute(
+        "INSERT INTO hero (user_id, level) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET level = excluded.level",
+        (user_id, level),
+    )
+    await _conn.commit()
 
 
 async def create_order(user_id: int, amount: int, price_som: int) -> int:

@@ -6,7 +6,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 
 import db
-from config import LOBBY_AUTOSTART_DELAY, MAX_PLAYERS, MIN_PLAYERS
+from config import MAX_PLAYERS, MIN_PLAYERS
 from game.engine import run_game
 from game.manager import manager
 from game.models import Game, GameState, Player, Role
@@ -27,14 +27,19 @@ def build_lobby_text(game: Game) -> str:
         "Ro'yxatdan o'tganlar:",
         names,
         "",
-        f"Jami {len(game.players)}ta odam.",
+        f"Jami {len(game.players)}ta odam. (kamida {MIN_PLAYERS} kerak)",
+        "",
+        "▶️ Boshlash tugmasini faqat o'yin egasi yoki guruh adminlari bosa oladi.",
     ]
     return "\n".join(lines)
 
 
 def build_lobby_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🤵‍♂️🤵‍♀️ Qo'shilish", callback_data="lobby:join")]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🤵‍♂️🤵‍♀️ Qo'shilish", callback_data="lobby:join")],
+            [InlineKeyboardButton(text="▶️ Boshlash", callback_data="lobby:start_now")],
+        ]
     )
 
 
@@ -189,15 +194,29 @@ async def on_join(callback: CallbackQuery, bot: Bot) -> None:
     except TelegramBadRequest:
         pass
 
-    if game.state != GameState.LOBBY or game.starting:
+
+@router.callback_query(F.data == "lobby:start_now")
+async def on_start_now(callback: CallbackQuery, bot: Bot) -> None:
+    game = manager.get_game(callback.message.chat.id)
+    if not game or game.state != GameState.LOBBY:
+        await callback.answer("Ro'yxat yopiq.", show_alert=True)
+        return
+    if game.starting:
+        await callback.answer("O'yin allaqachon boshlanmoqda.", show_alert=True)
         return
 
-    if len(game.players) >= MAX_PLAYERS:
-        game.starting = True
-        await _start_game(bot, game)
-    elif len(game.players) >= MIN_PLAYERS and not game.autostart_scheduled:
-        game.autostart_scheduled = True
-        asyncio.create_task(_autostart_countdown(bot, game))
+    is_owner = callback.from_user.id == game.host_id
+    if not is_owner and not await _is_chat_admin(bot, game.chat_id, callback.from_user.id):
+        await callback.answer("Faqat o'yin egasi yoki guruh adminlari boshlashi mumkin.", show_alert=True)
+        return
+
+    if len(game.players) < MIN_PLAYERS:
+        await callback.answer(f"Kamida {MIN_PLAYERS} o'yinchi kerak.", show_alert=True)
+        return
+
+    game.starting = True
+    await callback.answer("O'yin boshlanmoqda... ▶️")
+    await _start_game(bot, game)
 
 
 async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup | None:
@@ -224,10 +243,11 @@ async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup
 async def _start_game(bot: Bot, game: Game) -> None:
     assign_roles(game)
 
-    async def _load_items(player: Player) -> None:
+    async def _load_player_data(player: Player) -> None:
         player.items = await db.get_enabled_items(player.user_id)
+        player.hero_level = await db.get_hero_level(player.user_id)
 
-    await asyncio.gather(*(_load_items(p) for p in game.players.values()))
+    await asyncio.gather(*(_load_player_data(p) for p in game.players.values()))
 
     try:
         await bot.edit_message_text(
@@ -249,21 +269,3 @@ async def _start_game(bot: Bot, game: Game) -> None:
     await asyncio.gather(*(_send_role(p) for p in game.players.values()))
 
     asyncio.create_task(run_game(bot, game))
-
-
-async def _autostart_countdown(bot: Bot, game: Game) -> None:
-    try:
-        await bot.send_message(
-            game.chat_id,
-            f"✅ Kamida {MIN_PLAYERS} o'yinchi yig'ildi! {LOBBY_AUTOSTART_DELAY} soniyadan so'ng o'yin "
-            "avtomatik boshlanadi (hali ham qo'shilishingiz mumkin).",
-        )
-    except (TelegramForbiddenError, TelegramBadRequest):
-        pass
-
-    await asyncio.sleep(LOBBY_AUTOSTART_DELAY)
-
-    if manager.get_game(game.chat_id) is not game or game.state != GameState.LOBBY or game.starting:
-        return
-    game.starting = True
-    await _start_game(bot, game)

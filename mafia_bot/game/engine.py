@@ -11,7 +11,7 @@ from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarku
 
 import db
 from config import DAWN_DURATION, DAY_DISCUSSION_DURATION, NIGHT_DURATION, REVENGE_DURATION, VOTE_DURATION
-from economy import HITMAN_CONTRACT_BONUS_DOLLARS, payout_game_results
+from economy import HERO_BYPASS_LEVEL, HERO_ELIGIBLE_ROLES, HITMAN_CONTRACT_BONUS_DOLLARS, payout_game_results
 from texts import ROLE_NAMES
 from utils import (
     build_don_check_keyboard,
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 MAFIA_KILL_ROLES = (Role.MAFIA, Role.DON)
 MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER)
+NIGHT_RESULTS_DELAY = 20
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 DAY_IMAGE_PATH = ASSETS_DIR / "day.jpg"
@@ -307,6 +308,9 @@ async def night_phase(bot: Bot, game: Game) -> None:
     except asyncio.TimeoutError:
         pass
 
+    # Barcha tungi harakatlar yig'ilgach, natijalar e'lon qilinishidan oldin taranglik uchun kutamiz.
+    await asyncio.sleep(NIGHT_RESULTS_DELAY)
+
     mafia_target = None
     if game.mafia_votes:
         counts = Counter(game.mafia_votes.values())
@@ -449,7 +453,9 @@ async def night_phase(bot: Bot, game: Game) -> None:
 
 
 async def dawn_phase(bot: Bot, game: Game) -> None:
-    eligible = [p for p in game.players.values() if p.alive and p.items.get("hero_shot", 0) > 0]
+    eligible = [
+        p for p in game.players.values() if p.alive and p.hero_level > 0 and p.role in HERO_ELIGIBLE_ROLES
+    ]
     if not eligible:
         return
 
@@ -464,7 +470,7 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
             bot,
             game,
             hero.user_id,
-            "🥷 Sizda Geroy buyumi bor — tongda bir marta otish huquqingiz bor! "
+            "🦸 Siz Geroysiz — tongda zarba berish huquqingiz bor! "
             "Kimni otmoqchisiz? (xohlamasangiz e'tiborsiz qoldiring)",
             reply_markup=build_target_keyboard(game, exclude_ids={hero.user_id}, prefix="hero_shot"),
         )
@@ -480,20 +486,25 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
     for shooter_id, target_id in list(game.dawn_shots.items()):
         shooter = game.players.get(shooter_id)
         target = game.players.get(target_id)
-        if not shooter or not target or not target.alive:
+        if not shooter or not shooter.alive or not target or not target.alive:
             continue
-        if not await db.consume_item(shooter_id, "hero_shot"):
-            continue
-        shooter.items["hero_shot"] = max(0, shooter.items.get("hero_shot", 0) - 1)
 
-        if target.items.get("hero_immunity", 0) > 0 and await db.consume_item(target.user_id, "hero_immunity"):
-            target.items["hero_immunity"] -= 1
-            continue
+        bypass_all = shooter.hero_level >= HERO_BYPASS_LEVEL
+        if not bypass_all:
+            if target.items.get("mirror", 0) > 0 and await db.consume_item(target.user_id, "mirror"):
+                target.items["mirror"] -= 1
+                await _safe_send(bot, shooter.user_id, "🔮 Nishoningizning sehrli oynasi zarbangizni qaytardi!")
+                await _safe_send(bot, target.user_id, "🔮 Sehrli oynangiz Geroy zarbasidan sizni asradi!")
+                continue
+            if target.items.get("hero_immunity", 0) > 0 and await db.consume_item(target.user_id, "hero_immunity"):
+                target.items["hero_immunity"] -= 1
+                await _safe_send(bot, target.user_id, "🔰 Geroydan himoyangiz sizni zarbadan asradi!")
+                continue
 
         await _kill_player(bot, game, target)
         await bot.send_message(
             game.chat_id,
-            f"🥷 Tong otishi: <b>{mention(target)}</b> halok bo'ldi.\n"
+            f"🦸 Geroy zarbasi: <b>{mention(target)}</b> halok bo'ldi.\n"
             f"U — {ROLE_NAMES[target.role]} edi.",
         )
 
@@ -647,15 +658,8 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0
     lines.append("")
     lines.append(f"⏱ O'yin: {elapsed_min} daqiqa davom etdi")
-
-    top_rows = await db.top_points(since=int(time.time()) - 86_400, limit=10)
-    if top_rows:
-        lines.append("")
-        lines.append("▫️▫️▫️▫️▫️▫️▫️▫️▫️▫️")
-        lines.append("")
-        lines.append("🕐 <b>Kunlik TOP</b>")
-        for i, row in enumerate(top_rows, 1):
-            lines.append(f"{i}. {row['full_name']} — {row['total']} ball")
+    lines.append("")
+    lines.append("🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik)")
 
     await bot.send_message(game.chat_id, "\n".join(lines))
     manager.remove_game(game.chat_id)

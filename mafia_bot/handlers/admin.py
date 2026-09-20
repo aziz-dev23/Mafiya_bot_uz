@@ -16,6 +16,8 @@ async def build_profile_view(
     await db.ensure_user(user_id, full_name, username)
     user_row = await db.get_user(user_id)
     points = await db.points_summary(user_id)
+    hero_level = await db.get_hero_level(user_id)
+    hero_line = f"{hero_level}-daraja" if hero_level else "yo'q (/geroy)"
     inventory_rows = await db.get_inventory(user_id)
     inventory_by_key = {row["item_key"]: row for row in inventory_rows}
 
@@ -29,6 +31,8 @@ async def build_profile_view(
         "",
         f"🏅 Ball — kunlik: {points['daily']} | haftalik: {points['weekly']} | "
         f"oylik: {points['monthly']} | jami: {points['total']}",
+        "",
+        f"🦸 Geroy: {hero_line}",
         "",
         "🎒 <b>Buyumlar:</b>",
     ]

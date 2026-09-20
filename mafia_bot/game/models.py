@@ -38,6 +38,7 @@ class Player:
     items: dict[str, int] = field(default_factory=dict)
     contract_target: int | None = None
     shield_used: bool = False
+    hero_level: int = 0
 
 
 @dataclass
@@ -49,7 +50,6 @@ class Game:
     day_number: int = 0
     lobby_message_id: int | None = None
     task: "asyncio.Task | None" = None
-    autostart_scheduled: bool = False
     starting: bool = False
     started_at: float = 0.0
 

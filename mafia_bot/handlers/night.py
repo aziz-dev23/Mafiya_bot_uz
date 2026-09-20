@@ -3,6 +3,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
 import db
+from economy import HERO_ELIGIBLE_ROLES
 from game.engine import night_all_done
 from game.manager import manager
 from game.models import GameState, Role
@@ -342,7 +343,7 @@ async def on_hero_shot(callback: CallbackQuery) -> None:
         return
 
     shooter = game.players.get(callback.from_user.id)
-    if not shooter or not shooter.alive or shooter.items.get("hero_shot", 0) <= 0:
+    if not shooter or not shooter.alive or shooter.hero_level <= 0 or shooter.role not in HERO_ELIGIBLE_ROLES:
         await callback.answer("Bu tugma siz uchun emas.", show_alert=True)
         return
 
