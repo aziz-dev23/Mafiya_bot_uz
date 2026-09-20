@@ -2,7 +2,7 @@ import asyncio
 
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 
 import db
@@ -83,12 +83,7 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
     return True
 
 
-@router.message(Command("mafia", "yangi_oyin"))
-async def cmd_new_game(message: Message, bot: Bot) -> None:
-    if message.chat.type not in ("group", "supergroup"):
-        await message.answer("Bu buyruq faqat guruhda ishlaydi. Botni guruhga qo'shing va shu yerda ishga tushiring.")
-        return
-
+async def _open_new_game(message: Message, bot: Bot) -> None:
     if manager.get_game(message.chat.id):
         await message.answer("Bu guruhda allaqachon o'yin ketyapti yoki ro'yxat ochiq.")
         return
@@ -112,14 +107,51 @@ async def cmd_new_game(message: Message, bot: Bot) -> None:
     game.lobby_message_id = msg.message_id
 
 
+@router.message(Command("mafia", "yangi_oyin"))
+async def cmd_new_game(message: Message, bot: Bot) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        await message.answer("Bu buyruq faqat guruhda ishlaydi. Botni guruhga qo'shing va shu yerda ishga tushiring.")
+        return
+    await _open_new_game(message, bot)
+
+
+@router.message(CommandStart(), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_start_group(message: Message, bot: Bot) -> None:
+    game = manager.get_game(message.chat.id)
+    if not game:
+        await _open_new_game(message, bot)
+        return
+
+    if game.state != GameState.LOBBY:
+        await message.answer("Bu guruhda o'yin allaqachon boshlangan. U tugagach /start bosib yangisini oching.")
+        return
+
+    if message.from_user.id in game.players:
+        await message.answer("Siz allaqachon ro'yxatdasiz. O'yin tez orada boshlanadi!")
+        return
+
+    await message.answer(
+        "🎮 Bu guruhda o'yin ro'yxati ochiq! Qo'shilish uchun tugmani bosing:",
+        reply_markup=build_lobby_keyboard(),
+    )
+
+
+async def _is_chat_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        return False
+    return member.status in ("administrator", "creator")
+
+
 @router.message(Command("stop"))
-async def cmd_stop(message: Message) -> None:
+async def cmd_stop(message: Message, bot: Bot) -> None:
     game = manager.get_game(message.chat.id)
     if not game:
         await message.answer("Bu guruhda faol o'yin yo'q.")
         return
-    if message.from_user.id not in game.players:
-        await message.answer("Faqat shu o'yindagi qatnashuvchilar uni to'xtata oladi.")
+    if not await _is_chat_admin(bot, message.chat.id, message.from_user.id):
+        await message.answer("Faqat guruh adminlari o'yinni to'xtata oladi.")
         return
     manager.remove_game(message.chat.id)
     await message.answer("🛑 O'yin to'xtatildi.")
