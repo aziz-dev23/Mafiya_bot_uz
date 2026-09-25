@@ -27,7 +27,7 @@ from .models import Game, GameState, Player, Role
 logger = logging.getLogger(__name__)
 
 MAFIA_KILL_ROLES = (Role.MAFIA, Role.DON)
-MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER)
+MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER, Role.HITMAN)
 NIGHT_RESULTS_DELAY = 20
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
@@ -411,7 +411,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
                     f"U — {ROLE_NAMES[kvictim.role]} edi.",
                 )
 
-    # Yollanma qotil — mustaqil o'ldirish + buyurtma bonusi.
+    # Yollanma qotil — mafiya tarafida o'ldiradi, o'z buyurtma bonusi bilan.
     if game.hitman_target is not None:
         hvictim = game.players.get(game.hitman_target)
         hitman_player = next((p for p in game.players.values() if p.alive and p.role == Role.HITMAN), None)

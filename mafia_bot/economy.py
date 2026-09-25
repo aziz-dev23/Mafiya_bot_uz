@@ -85,7 +85,7 @@ def parse_currency(token: str) -> str | None:
     return CURRENCY_ALIASES.get(token.lower())
 
 
-MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER)
+MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER, Role.HITMAN)
 
 
 def _did_win(role: Role, winner: str) -> bool:
@@ -93,7 +93,6 @@ def _did_win(role: Role, winner: str) -> bool:
         return role == Role.KILLER
     if winner == "mafia":
         return role in MAFIA_TEAM_ROLES
-    # town — Yollanma qotil alohida g'alaba sharti yo'q, tomon natijasiga qo'shiladi
     return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
 
 

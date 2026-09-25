@@ -35,10 +35,10 @@ ROLE_DESCRIPTIONS = {
         "<b>yolg'iz qolib ketsangiz</b> — yakka o'zingiz g'alaba qilasiz!"
     ),
     Role.HITMAN: (
-        "Siz — <b>Yollanma qotil</b>siz. Sizga maxfiy bitta 'buyurtma' "
-        "(nishon) berilgan — profilingizni tekshiring. Har kecha istagan "
-        "birovni o'ldirishingiz mumkin. Aynan buyurtma nishonini o'ldirsangiz "
-        "— katta pul bonusi olasiz."
+        "Siz — <b>Yollanma qotil</b>siz, Mafiya tomonidasiz. Sizga maxfiy "
+        "bitta 'buyurtma' (nishon) berilgan — profilingizni tekshiring. Har "
+        "kecha istagan birovni o'ldirishingiz mumkin. Aynan buyurtma "
+        "nishonini o'ldirsangiz — katta pul bonusi olasiz."
     ),
     Role.DOCTOR: (
         "Siz — <b>Doktor</b>siz. Har kecha bitta odamni (o'zingizni ham) "
