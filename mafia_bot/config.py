@@ -24,4 +24,4 @@ SELLER_IDS = {int(x) for x in os.getenv("SELLER_IDS", "").replace(",", " ").spli
 PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "")
 PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "")
 # To'lov chekini (skrinshot) qabul qiladigan Telegram username (@ belgisisiz ham bo'ladi)
-PAYMENT_CONTACT_USERNAME = os.getenv("PAYMENT_CONTACT_USERNAME", "").strip().lstrip("@")
+PAYMENT_CONTACT_USERNAME = os.getenv("PAYMENT_CONTACT_USERNAME", "theaziz_art23").strip().lstrip("@")
