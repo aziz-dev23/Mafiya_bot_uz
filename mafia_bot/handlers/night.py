@@ -102,12 +102,12 @@ async def on_doctor_save(callback: CallbackQuery, bot: Bot) -> None:
     game.doctor_acted = True
     await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
     try:
-        await callback.message.edit_text(f"💊 Siz himoya qildingiz: {target.full_name}")
+        await callback.message.edit_text(f"💉 Siz himoya qildingiz: {target.full_name}")
     except TelegramBadRequest:
         pass
 
     if first_time:
-        await bot.send_message(game.chat_id, "💊 Doktor tungi navbatchilikka ketdi.")
+        await bot.send_message(game.chat_id, "💉 Doktor tungi navbatchilikka ketdi.")
 
     if night_all_done(game) and game.night_event:
         game.night_event.set()

@@ -110,6 +110,20 @@ async def _open_new_game(message: Message, bot: Bot) -> None:
 
     msg = await message.answer(build_lobby_text(game), reply_markup=build_lobby_keyboard())
     game.lobby_message_id = msg.message_id
+    try:
+        # Ro'yxat xabari hamma ko'rishi uchun guruh tepasiga qadaladi (bot admin bo'lishi kerak).
+        await bot.pin_chat_message(message.chat.id, msg.message_id)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
+
+
+async def _unpin_lobby(bot: Bot, game: Game) -> None:
+    if game.lobby_message_id is None:
+        return
+    try:
+        await bot.unpin_chat_message(game.chat_id, message_id=game.lobby_message_id)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
 
 
 @router.message(Command("mafia", "yangi_oyin"))
@@ -159,6 +173,8 @@ async def cmd_stop(message: Message, bot: Bot) -> None:
         await message.answer("Faqat guruh adminlari o'yinni to'xtata oladi.")
         return
     manager.remove_game(message.chat.id)
+    if game.state == GameState.LOBBY:
+        await _unpin_lobby(bot, game)
     await message.answer("🛑 O'yin to'xtatildi.")
 
 
@@ -258,6 +274,7 @@ async def _start_game(bot: Bot, game: Game) -> None:
     except TelegramBadRequest:
         pass
 
+    await _unpin_lobby(bot, game)
     group_kb = await _group_return_keyboard(bot, game.chat_id)
 
     async def _send_role(player: Player) -> None:

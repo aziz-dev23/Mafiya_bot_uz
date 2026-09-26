@@ -1,5 +1,5 @@
 import db
-from game.models import Game, Role
+from game.models import Game, Player, Role
 from texts import ROLE_NAMES
 
 # (olmos miqdori, narxi so'mda) — o'zingizga mos narxlarni shu yerda o'zgartiring
@@ -88,21 +88,23 @@ def parse_currency(token: str) -> str | None:
 MAFIA_TEAM_ROLES = (Role.MAFIA, Role.DON, Role.LAWYER, Role.HITMAN)
 
 
-def _did_win(role: Role, winner: str) -> bool:
+def did_win(player: Player, winner: str) -> bool:
+    """Faqat g'olib jamoaning oxirigacha tirik qolgan a'zolari yutgan hisoblanadi."""
+    if not player.alive:
+        return False
     if winner == "killer":
-        return role == Role.KILLER
+        return player.role == Role.KILLER
     if winner == "mafia":
-        return role in MAFIA_TEAM_ROLES
-    return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
+        return player.role in MAFIA_TEAM_ROLES
+    return player.role not in MAFIA_TEAM_ROLES and player.role != Role.KILLER
 
 
 def _top_bonus_ids(game: Game, winner: str) -> set[int]:
-    """>10 o'yinchili o'yinlarda g'olib bo'lgan (afzalroq — tirik qolgan) top-3ga 50 balldan beriladi."""
+    """>10 o'yinchili o'yinlarda g'oliblardan top-3ga 50 balldan beriladi."""
     if len(game.players) <= POINTS_BIG_GAME_MIN_PLAYERS:
         return set()
-    winners = [p for p in game.players.values() if _did_win(p.role, winner)]
-    ordered = sorted(winners, key=lambda p: not p.alive)
-    return {p.user_id for p in ordered[:POINTS_TOP_BONUS_COUNT]}
+    winners = [p for p in game.players.values() if did_win(p, winner)]
+    return {p.user_id for p in winners[:POINTS_TOP_BONUS_COUNT]}
 
 
 async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
@@ -112,7 +114,7 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
     top_bonus_ids = _top_bonus_ids(game, winner)
 
     for p in game.players.values():
-        won = _did_win(p.role, winner)
+        won = did_win(p, winner)
         points = (POINTS_TOP_BONUS if p.user_id in top_bonus_ids else POINTS_WIN) if won else POINTS_LOSE
         status = "🟢 tirik" if p.alive else "⚰️ halok"
 

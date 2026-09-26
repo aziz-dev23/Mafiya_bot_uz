@@ -30,6 +30,17 @@ def build_don_check_keyboard(game: Game, exclude_ids: set[int]) -> InlineKeyboar
     return build_target_keyboard(game, exclude_ids, "don_check")
 
 
+def build_confirm_keyboard(likes: int, dislikes: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=f"👍 {likes}", callback_data="confirm:yes"),
+                InlineKeyboardButton(text=f"👎 {dislikes}", callback_data="confirm:no"),
+            ]
+        ]
+    )
+
+
 def build_vote_keyboard(game: Game) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text=p.full_name, callback_data=f"vote:{p.user_id}")]

@@ -10,10 +10,18 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 import db
-from config import DAWN_DURATION, DAY_DISCUSSION_DURATION, NIGHT_DURATION, REVENGE_DURATION, VOTE_DURATION
-from economy import HERO_BYPASS_LEVEL, HERO_ELIGIBLE_ROLES, HITMAN_CONTRACT_BONUS_DOLLARS, payout_game_results
+from config import (
+    CONFIRM_VOTE_DURATION,
+    DAWN_DURATION,
+    DAY_DISCUSSION_DURATION,
+    NIGHT_DURATION,
+    REVENGE_DURATION,
+    VOTE_DURATION,
+)
+from economy import HERO_BYPASS_LEVEL, HERO_ELIGIBLE_ROLES, HITMAN_CONTRACT_BONUS_DOLLARS, did_win, payout_game_results
 from texts import ROLE_NAMES
 from utils import (
+    build_confirm_keyboard,
     build_don_check_keyboard,
     build_mafia_kill_keyboard,
     build_target_keyboard,
@@ -241,7 +249,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
     for d in alive_doctor:
         kb = build_target_keyboard(game, exclude_ids=set(), prefix="d_save")
         night_prompt_tasks.append(
-            _safe_send_replace(bot, game, d.user_id, "💊 Kimni himoya qilmoqchisiz?", reply_markup=kb)
+            _safe_send_replace(bot, game, d.user_id, "💉 Kimni himoya qilmoqchisiz?", reply_markup=kb)
         )
 
     for c in alive_detective:
@@ -537,6 +545,45 @@ async def _resolve_sorcerer_revenge(bot: Bot, game: Game, sorcerer) -> None:
             )
 
 
+def confirm_counts(game: Game) -> tuple[int, int]:
+    likes = sum(1 for v in game.confirm_votes.values() if v)
+    return likes, len(game.confirm_votes) - likes
+
+
+async def _confirm_vote(bot: Bot, game: Game, candidate: Player) -> bool:
+    """Eng ko'p ovoz olgan nomzod uchun guruhda 👍/👎 ovoz o'tkazadi; 👍 ko'p bo'lsa True."""
+    game.state = GameState.DAY_CONFIRM
+    game.confirm_candidate = candidate.user_id
+    game.confirm_votes.clear()
+    game.confirm_needed = sum(1 for p in game.players.values() if p.alive and p.user_id != candidate.user_id)
+    game.confirm_event = asyncio.Event()
+
+    await bot.send_message(
+        game.chat_id,
+        f"⚖️ Eng ko'p ovozni <b>{mention(candidate)}</b> oldi.\n"
+        "Uni rostdan ham osamizmi? 👍 — ha, 👎 — yo'q.\n"
+        f"⏳ {CONFIRM_VOTE_DURATION} soniya vaqt bor.",
+        reply_markup=build_confirm_keyboard(0, 0),
+    )
+
+    try:
+        await asyncio.wait_for(game.confirm_event.wait(), timeout=CONFIRM_VOTE_DURATION)
+    except asyncio.TimeoutError:
+        pass
+
+    likes, dislikes = confirm_counts(game)
+    game.state = GameState.DAY_VOTING
+    game.confirm_candidate = None
+    if likes > dislikes:
+        return True
+
+    await bot.send_message(
+        game.chat_id,
+        f"🙅 Ovozlar: 👍 {likes} | 👎 {dislikes}\n<b>{mention(candidate)}</b> omon qoldi — bugun hech kim osilmadi.",
+    )
+    return False
+
+
 async def day_phase(bot: Bot, game: Game) -> None:
     game.state = GameState.DAY_DISCUSSION
     alive = [p for p in game.players.values() if p.alive]
@@ -591,6 +638,9 @@ async def day_phase(bot: Bot, game: Game) -> None:
             if len(candidates) == 1:
                 eliminated = game.players[candidates[0]]
 
+                if not await _confirm_vote(bot, game, eliminated):
+                    return
+
                 if eliminated.items.get("vote_shield", 0) > 0 and await db.consume_item(
                     eliminated.user_id, "vote_shield"
                 ):
@@ -616,14 +666,6 @@ async def day_phase(bot: Bot, game: Game) -> None:
     await bot.send_message(game.chat_id, "⚖️ Ovozlar teng bo'ldi yoki hech kim ovoz bermadi — bugun hech kim haydalmadi.")
 
 
-def _is_winner_role(role: Role, winner: str) -> bool:
-    if winner == "killer":
-        return role == Role.KILLER
-    if winner == "mafia":
-        return role in MAFIA_TEAM_ROLES
-    return role not in MAFIA_TEAM_ROLES and role != Role.KILLER
-
-
 async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     game.state = GameState.FINISHED
     if winner == "town":
@@ -637,8 +679,8 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     for user_id, text in private_messages:
         await _safe_send(bot, user_id, f"🏁 <b>O'yin tugadi!</b>\n\n{result_text}\n\n{text}")
 
-    winners = [p for p in game.players.values() if _is_winner_role(p.role, winner)]
-    losers = [p for p in game.players.values() if not _is_winner_role(p.role, winner)]
+    winners = [p for p in game.players.values() if did_win(p, winner)]
+    losers = [p for p in game.players.values() if not did_win(p, winner)]
 
     lines = ["🏁 <b>O'yin tugadi!</b>", "", result_text, ""]
 
@@ -652,7 +694,8 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
         lines.append("")
         lines.append("<b>Qolgan o'yinchilar:</b>")
         for p in losers:
-            lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}")
+            status = "" if p.alive else " (⚰️ halok)"
+            lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0

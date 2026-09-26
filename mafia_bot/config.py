@@ -6,12 +6,13 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", "4"))
-MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "15"))
+MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "40"))
 NIGHT_DURATION = int(os.getenv("NIGHT_DURATION", "45"))
 DAWN_DURATION = int(os.getenv("DAWN_DURATION", "20"))
 REVENGE_DURATION = int(os.getenv("REVENGE_DURATION", "20"))
 DAY_DISCUSSION_DURATION = int(os.getenv("DAY_DISCUSSION_DURATION", "30"))
 VOTE_DURATION = int(os.getenv("VOTE_DURATION", "30"))
+CONFIRM_VOTE_DURATION = int(os.getenv("CONFIRM_VOTE_DURATION", "30"))
 LOBBY_AUTOSTART_DELAY = int(os.getenv("LOBBY_AUTOSTART_DELAY", "15"))
 
 DB_PATH = os.getenv("DB_PATH", "mafia.db")
@@ -22,3 +23,5 @@ SELLER_IDS = {int(x) for x in os.getenv("SELLER_IDS", "").replace(",", " ").spli
 # Olmos sotib olish uchun to'lov kartasi — o'zingizning haqiqiy kartangizni yozing
 PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "")
 PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "")
+# To'lov chekini (skrinshot) qabul qiladigan Telegram username (@ belgisisiz ham bo'ladi)
+PAYMENT_CONTACT_USERNAME = os.getenv("PAYMENT_CONTACT_USERNAME", "").strip().lstrip("@")

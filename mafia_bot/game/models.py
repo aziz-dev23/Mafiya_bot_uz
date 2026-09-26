@@ -25,6 +25,7 @@ class GameState(str, Enum):
     DAWN = "dawn"
     DAY_DISCUSSION = "day_discussion"
     DAY_VOTING = "day_voting"
+    DAY_CONFIRM = "day_confirm"
     FINISHED = "finished"
 
 
@@ -98,6 +99,12 @@ class Game:
     day_votes: dict[int, int | None] = field(default_factory=dict)
     vote_needed: int = 0
     vote_event: "asyncio.Event | None" = None
+
+    # guruhdagi 👍/👎 tasdiqlash ovozi (eng ko'p ovoz olgan nomzod uchun)
+    confirm_candidate: int | None = None
+    confirm_votes: dict[int, bool] = field(default_factory=dict)
+    confirm_needed: int = 0
+    confirm_event: "asyncio.Event | None" = None
 
     # har bir o'yinchiga yuborilgan oxirgi shaxsiy so'rov xabari (yangisi yuborilishidan
     # oldin shu xabar o'chiriladi — shaxsiy chatda eski tugmalar to'planib qolmasligi uchun)

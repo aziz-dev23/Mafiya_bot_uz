@@ -5,7 +5,7 @@ ROLE_NAMES = {
     Role.DON: "🤵🏻 Don",
     Role.KILLER: "🔪 Qotil",
     Role.HITMAN: "🥷 Yollanma qotil",
-    Role.DOCTOR: "💊 Doktor",
+    Role.DOCTOR: "💉 Doktor",
     Role.DETECTIVE: "🕵️ Komissar",
     Role.POISONER: "💊 Kezuvchi",
     Role.WANDERER: "🚶 Daydi",

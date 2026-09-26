@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
-from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER
+from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
 from economy import DIAMOND_PACKAGES, DIAMOND_TO_DOLLAR_RATE
 
 router = Router(name="shop")
@@ -109,10 +109,21 @@ async def on_buy(callback: CallbackQuery, bot: Bot) -> None:
         "To'lov qilgach kuting — administrator tekshirib, olmoslarni hisobingizga "
         "qo'shadi."
     )
+    contact_kb = None
+    if PAYMENT_CONTACT_USERNAME:
+        text += (
+            f"\n\n🧾 To'lovdan so'ng <b>chekni (skrinshot)</b> buyurtma raqami "
+            f"<code>#{order_id}</code> bilan birga @{PAYMENT_CONTACT_USERNAME} ga yuboring."
+        )
+        contact_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🧾 Chekni yuborish", url=f"https://t.me/{PAYMENT_CONTACT_USERNAME}")]
+            ]
+        )
     try:
-        await callback.message.edit_text(text)
+        await callback.message.edit_text(text, reply_markup=contact_kb)
     except TelegramBadRequest:
-        await callback.message.answer(text)
+        await callback.message.answer(text, reply_markup=contact_kb)
 
     if not ADMIN_IDS:
         return
