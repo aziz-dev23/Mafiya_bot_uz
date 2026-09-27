@@ -108,5 +108,6 @@ HELP_TEXT = (
     "Mafiya soni tinch aholiga teng yoki ko'p bo'lsa — mafiya g'alaba "
     "qiladi; barcha mafiya tutilsa — tinch aholi g'alaba qiladi.\n\n"
     "G'olib bo'lgan o'yinchilar Dollar 💵 va ball yutib olishadi — ballaringiz "
-    "kunlik/haftalik/oylik reytingga qo'shiladi."
+    "kunlik/haftalik/oylik reytingga qo'shiladi (/top1, /top7, /top30).\n\n"
+    "⚠️ O'yin davomida guruhda faqat kunduzi yozish mumkin — tunda yozilgan va halok bo'lganlarning xabarlari o'chiriladi."
 )

@@ -1,8 +1,11 @@
 import time
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 
-from config import DB_PATH
+from config import DB_PATH, TIMEZONE_OFFSET_HOURS
+
+_TZ = timezone(timedelta(hours=TIMEZONE_OFFSET_HOURS))
 
 _conn: aiosqlite.Connection | None = None
 
@@ -160,8 +163,16 @@ async def add_points(user_id: int, points: int) -> None:
     await _conn.commit()
 
 
+def period_starts() -> dict[str, int]:
+    """Kalendar davrlari boshlanishi (unix-vaqt): bugun 00:00, shu hafta dushanba 00:00, oyning 1-sanasi 00:00."""
+    today = datetime.now(_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+    week = today - timedelta(days=today.weekday())
+    month = today.replace(day=1)
+    return {"daily": int(today.timestamp()), "weekly": int(week.timestamp()), "monthly": int(month.timestamp())}
+
+
 async def points_summary(user_id: int) -> dict[str, int]:
-    now = int(time.time())
+    starts = period_starts()
     cur = await _conn.execute(
         "SELECT "
         "COALESCE(SUM(CASE WHEN created_at >= ? THEN points END), 0) AS daily, "
@@ -169,7 +180,7 @@ async def points_summary(user_id: int) -> dict[str, int]:
         "COALESCE(SUM(CASE WHEN created_at >= ? THEN points END), 0) AS monthly, "
         "COALESCE(SUM(points), 0) AS total "
         "FROM points_log WHERE user_id = ?",
-        (now - 86_400, now - 7 * 86_400, now - 30 * 86_400, user_id),
+        (starts["daily"], starts["weekly"], starts["monthly"], user_id),
     )
     row = await cur.fetchone()
     await cur.close()

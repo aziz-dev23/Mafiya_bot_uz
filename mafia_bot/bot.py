@@ -10,7 +10,7 @@ from aiogram.types import BotCommand
 
 import db
 from config import BOT_TOKEN
-from handlers import admin, common, day, hero, items, lobby, market, menu, night, ranking, shop, transfer
+from handlers import admin, chat_guard, common, day, hero, items, lobby, market, menu, night, ranking, shop, transfer
 
 
 async def main() -> None:
@@ -36,6 +36,8 @@ async def main() -> None:
     dp.include_router(lobby.router)
     dp.include_router(night.router)
     dp.include_router(day.router)
+    # Oxirida: boshqa routerlar ushlamagan guruh xabarlarini tunda o'chiradi
+    dp.include_router(chat_guard.router)
 
     await bot.set_my_commands(
         [
@@ -53,6 +55,7 @@ async def main() -> None:
             BotCommand(command="top", description="Umumiy reyting (barcha o'yinlar)"),
             BotCommand(command="top1", description="Kunlik reyting"),
             BotCommand(command="top7", description="Haftalik reyting"),
+            BotCommand(command="top30", description="Oylik reyting"),
             BotCommand(command="help", description="Yordam"),
         ]
     )

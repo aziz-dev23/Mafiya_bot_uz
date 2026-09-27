@@ -16,6 +16,8 @@ CONFIRM_VOTE_DURATION = int(os.getenv("CONFIRM_VOTE_DURATION", "30"))
 LOBBY_AUTOSTART_DELAY = int(os.getenv("LOBBY_AUTOSTART_DELAY", "15"))
 
 DB_PATH = os.getenv("DB_PATH", "mafia.db")
+# Reyting davrlari (kun/hafta/oy) shu vaqt mintaqasi bo'yicha hisoblanadi (Toshkent = UTC+5)
+TIMEZONE_OFFSET_HOURS = int(os.getenv("TIMEZONE_OFFSET_HOURS", "5"))
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").replace(",", " ").split() if x.strip()}
 # Faqat shu Telegram user_id'lar bozorda (/sell) sotuvchi sifatida e'lon joylay oladi
 SELLER_IDS = {int(x) for x in os.getenv("SELLER_IDS", "").replace(",", " ").split() if x.strip()}

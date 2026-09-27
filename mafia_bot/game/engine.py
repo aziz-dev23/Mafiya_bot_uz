@@ -702,7 +702,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     lines.append("")
     lines.append(f"⏱ O'yin: {elapsed_min} daqiqa davom etdi")
     lines.append("")
-    lines.append("🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik)")
+    lines.append("🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik), /top30 (oylik)")
 
     await bot.send_message(game.chat_id, "\n".join(lines))
     manager.remove_game(game.chat_id)

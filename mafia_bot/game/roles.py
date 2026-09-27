@@ -4,7 +4,7 @@ from .models import Game, Role
 
 # Maxsus rollar ustuvorlik tartibida: (rol, shu rol paydo bo'ladigan minimal o'yinchi soni).
 SPECIAL_ROLES = (
-    (Role.DETECTIVE, 5),
+    (Role.DETECTIVE, 4),
     (Role.DOCTOR, 6),
     (Role.POISONER, 6),
     (Role.KILLER, 7),

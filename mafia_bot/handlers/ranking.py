@@ -1,5 +1,3 @@
-import time
-
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -28,9 +26,14 @@ async def cmd_top(message: Message) -> None:
 
 @router.message(Command("top1"))
 async def cmd_top1(message: Message) -> None:
-    await _reply_top(message, "🕐 <b>Kunlik TOP</b>", since=int(time.time()) - 86_400)
+    await _reply_top(message, "🕐 <b>Kunlik TOP</b> (bugun 00:00 — 23:59)", since=db.period_starts()["daily"])
 
 
 @router.message(Command("top7"))
 async def cmd_top7(message: Message) -> None:
-    await _reply_top(message, "📅 <b>Haftalik TOP</b>", since=int(time.time()) - 7 * 86_400)
+    await _reply_top(message, "📅 <b>Haftalik TOP</b> (dushanba — yakshanba)", since=db.period_starts()["weekly"])
+
+
+@router.message(Command("top30"))
+async def cmd_top30(message: Message) -> None:
+    await _reply_top(message, "🗓 <b>Oylik TOP</b> (oyning 1-sanasidan)", since=db.period_starts()["monthly"])
