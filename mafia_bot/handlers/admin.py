@@ -105,7 +105,7 @@ def _parse_target_and_amount(message: Message) -> tuple[int | None, int | None, 
         return message.reply_to_message.from_user.id, int(parts[1]), None
 
     if len(parts) < 3 or not parts[1].isdigit() or not parts[2].lstrip("-").isdigit():
-        return None, None, "Foydalanish: /addcash <user_id> <miqdor> yoki xabarga reply qilib /addcash <miqdor>"
+        return None, None, "Foydalanish: /addcash &lt;user_id&gt; &lt;miqdor&gt; yoki xabarga reply qilib /addcash &lt;miqdor&gt;"
     return int(parts[1]), int(parts[2]), None
 
 

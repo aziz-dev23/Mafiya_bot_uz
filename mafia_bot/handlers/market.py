@@ -25,7 +25,7 @@ async def cmd_sell(message: Message) -> None:
     parts = message.text.split()
     if len(parts) != 5:
         await message.answer(
-            "Foydalanish: /sell <miqdor> <valyuta> <narx> <narx_valyutasi>\n"
+            "Foydalanish: /sell &lt;miqdor&gt; &lt;valyuta&gt; &lt;narx&gt; &lt;narx_valyutasi&gt;\n"
             "Masalan: /sell 100 coin 5000 dollar"
         )
         return

@@ -95,7 +95,7 @@ HELP_TEXT = (
     "<b>Profil va iqtisodiyot:</b>\n"
     "/profile — balansingiz, statistikangiz va ballaringiz (Dollar 💵, Olmos 💎, Coin 🪙)\n"
     "/shop — olmos sotib olish (karta orqali, admin tasdig'idan so'ng)\n"
-    "/almashtir <miqdor> — olmosni Dollarga almashtirish\n"
+    "/almashtir &lt;miqdor&gt; — olmosni Dollarga almashtirish\n"
     "/market — bozordagi faol e'lonlarni ko'rish va sotib olish\n"
     "/dokon — buyumlar do'koni (Himoya, Soxta hujjat, Ovozdan himoya, Miltiq, Sehrli oyna)\n"
     "/sumka — buyumlaringiz, o'yin oldidan yoqish/o'chirish\n"
