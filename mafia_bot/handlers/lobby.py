@@ -12,7 +12,7 @@ from game.manager import manager
 from game.models import Game, GameState, Player, Role
 from game.roles import assign_roles
 from texts import ROLE_DESCRIPTIONS, ROLE_NAMES
-from utils import mention
+from utils import esc, mention
 
 router = Router(name="lobby")
 
@@ -47,7 +47,7 @@ def build_role_message(player: Player, game: Game) -> str:
     lines = [f"🎭 Sizning rolingiz: <b>{ROLE_NAMES[player.role]}</b>", "", ROLE_DESCRIPTIONS[player.role]]
     if player.role in (Role.MAFIA, Role.DON, Role.LAWYER):
         teammates = [
-            p.full_name
+            esc(p.full_name)
             for p in game.players.values()
             if p.role in (Role.MAFIA, Role.DON, Role.LAWYER) and p.user_id != player.user_id
         ]
@@ -58,7 +58,7 @@ def build_role_message(player: Player, game: Game) -> str:
         target = game.players.get(player.contract_target)
         if target:
             lines.append("")
-            lines.append(f"🎯 Sizning maxfiy buyurtma nishoningiz: <b>{target.full_name}</b>")
+            lines.append(f"🎯 Sizning maxfiy buyurtma nishoningiz: <b>{esc(target.full_name)}</b>")
     return "\n".join(lines)
 
 

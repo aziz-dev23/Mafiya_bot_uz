@@ -81,22 +81,21 @@ async def on_buy_item_back(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("buyitem_qty:"))
 async def on_buy_item_qty(callback: CallbackQuery) -> None:
-    _, key, qty_str = callback.data.split(":")
-    qty = int(qty_str)
-    item = ITEMS.get(key)
-    if not item:
+    parts = callback.data.split(":")
+    item = ITEMS.get(parts[1]) if len(parts) == 3 else None
+    # Faqat tugmalardagi miqdorlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
+    if not item or not parts[2].isdigit() or int(parts[2]) not in QUANTITY_OPTIONS:
         await callback.answer("Bu buyum topilmadi.", show_alert=True)
         return
+    key, qty = parts[1], int(parts[2])
 
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    user_row = await db.get_user(callback.from_user.id)
     col = CURRENCY_COLUMN[item["currency"]]
     total_price = item["price"] * qty
-    if user_row[col] < total_price:
+    if not await db.spend_balance(callback.from_user.id, col, total_price):
         await callback.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[item['currency']]} yo'q.", show_alert=True)
         return
 
-    await db.add_balance(callback.from_user.id, **{col: -total_price})
     await db.add_item(callback.from_user.id, key, qty)
 
     await callback.answer(f"✅ {qty} ta {item['emoji']} {item['name']} sotib olindi!")

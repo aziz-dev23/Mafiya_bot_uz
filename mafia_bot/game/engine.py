@@ -26,6 +26,7 @@ from utils import (
     build_mafia_kill_keyboard,
     build_target_keyboard,
     build_vote_keyboard,
+    esc,
     mention,
 )
 
@@ -80,7 +81,7 @@ def _goto_bot_keyboard(username: str) -> InlineKeyboardMarkup:
 
 def _alive_list_text(game: Game) -> str:
     alive = [p for p in game.players.values() if p.alive]
-    return "\n".join(f"{i}. {p.full_name}" for i, p in enumerate(alive, 1))
+    return "\n".join(f"{i}. {esc(p.full_name)}" for i, p in enumerate(alive, 1))
 
 
 def night_all_done(game: Game) -> bool:
@@ -234,7 +235,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
     night_prompt_tasks = []
 
     for m in alive_mafia:
-        teammates = ", ".join(p.full_name for p in alive_mafia if p.user_id != m.user_id) or "yo'q"
+        teammates = ", ".join(esc(p.full_name) for p in alive_mafia if p.user_id != m.user_id) or "yo'q"
         kb = build_mafia_kill_keyboard(game, m.user_id, exclude_ids=mafia_ids)
         night_prompt_tasks.append(
             _safe_send_replace(
@@ -334,11 +335,16 @@ async def night_phase(bot: Bot, game: Game) -> None:
     if victim_id is not None and game.players[victim_id].role == Role.WOLF:
         wolf = game.players[victim_id]
         wolf.role = Role.MAFIA
+        teammates = ", ".join(
+            esc(p.full_name)
+            for p in game.players.values()
+            if p.alive and p.role in MAFIA_TEAM_ROLES and p.user_id != wolf.user_id
+        ) or "yo'q"
         await _safe_send(
             bot,
             wolf.user_id,
             "🐺 Mafiya sizni tunda yo'q qilishga urindi... lekin siz aslida ulardan ekansiz! "
-            "Siz endi Mafiya jamoasining a'zosisiz.",
+            f"Siz endi Mafiya jamoasining a'zosisiz.\nSherik mafiyalar: {teammates}",
         )
         victim_id = None
         mafia_resolved = True
@@ -453,7 +459,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
                 await _safe_send(
                     bot,
                     wanderer_player.user_id,
-                    f"🚶 Siz tashrif buyurgan {visited.full_name} shu kecha halok bo'lganini bilib oldingiz.",
+                    f"🚶 Siz tashrif buyurgan {esc(visited.full_name)} shu kecha halok bo'lganini bilib oldingiz.",
                 )
 
     if not tonight_deaths:
@@ -687,7 +693,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     idx = 1
     lines.append("<b>G'oliblar:</b>")
     for p in winners:
-        lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}")
+        lines.append(f"{idx}. {esc(p.full_name)} — {ROLE_NAMES[p.role]}")
         idx += 1
 
     if losers:
@@ -695,7 +701,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
         lines.append("<b>Qolgan o'yinchilar:</b>")
         for p in losers:
             status = "" if p.alive else " (⚰️ halok)"
-            lines.append(f"{idx}. {p.full_name} — {ROLE_NAMES[p.role]}{status}")
+            lines.append(f"{idx}. {esc(p.full_name)} — {ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0

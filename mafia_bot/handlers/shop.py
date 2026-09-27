@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import db
 from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
 from economy import DIAMOND_PACKAGES, DIAMOND_TO_DOLLAR_RATE
+from utils import esc
 
 router = Router(name="shop")
 
@@ -40,6 +41,9 @@ async def cmd_shop(message: Message) -> None:
     )
 
 
+EXCHANGE_AMOUNTS = {amount for amount, _ in DIAMOND_PACKAGES}
+
+
 def build_exchange_keyboard() -> InlineKeyboardMarkup:
     rows = []
     for i in range(0, len(DIAMOND_PACKAGES), 2):
@@ -66,15 +70,19 @@ async def cmd_exchange(message: Message) -> None:
 
 @router.callback_query(F.data.startswith("exchange:"))
 async def on_exchange(callback: CallbackQuery) -> None:
-    amount = int(callback.data.split(":")[1])
+    raw = callback.data.split(":")[1]
+    # Faqat tugmalardagi paketlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
+    if not raw.isdigit() or int(raw) not in EXCHANGE_AMOUNTS:
+        await callback.answer("Noto'g'ri miqdor.", show_alert=True)
+        return
+    amount = int(raw)
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    user_row = await db.get_user(callback.from_user.id)
-    if user_row["diamonds"] < amount:
+    if not await db.spend_balance(callback.from_user.id, "diamonds", amount):
         await callback.answer("Olmosingiz yetarli emas.", show_alert=True)
         return
 
     dollars = amount * DIAMOND_TO_DOLLAR_RATE
-    await db.add_balance(callback.from_user.id, diamonds=-amount, dollars=dollars)
+    await db.add_balance(callback.from_user.id, dollars=dollars)
     await callback.answer(f"✅ {amount}💎 → {dollars}💵 almashtirildi.", show_alert=True)
     try:
         await callback.message.edit_text(
@@ -90,7 +98,8 @@ async def on_buy(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer("Hozircha ishlamayapti.", show_alert=True)
         return
 
-    amount = int(callback.data.split(":")[2])
+    raw = callback.data.split(":")[2]
+    amount = int(raw) if raw.isdigit() else None
     price = next((p for a, p in DIAMOND_PACKAGES if a == amount), None)
     if price is None:
         await callback.answer("Bu paket topilmadi.", show_alert=True)
@@ -138,7 +147,7 @@ async def on_buy(callback: CallbackQuery, bot: Bot) -> None:
     )
     admin_text = (
         f"🧾 <b>Yangi buyurtma #{order_id}</b>\n"
-        f"Foydalanuvchi: {callback.from_user.full_name} (id=<code>{callback.from_user.id}</code>)\n"
+        f"Foydalanuvchi: {esc(callback.from_user.full_name)} (id=<code>{callback.from_user.id}</code>)\n"
         f"Paket: {amount}💎 — {format_som(price)} so'm\n\n"
         "To'lov tushganini tekshirib, tugmalardan birini bosing."
     )

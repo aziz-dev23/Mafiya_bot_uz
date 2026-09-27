@@ -1,10 +1,18 @@
+import html
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from game.models import Game
 
 
+def esc(text: str) -> str:
+    """Foydalanuvchi matnini (ism va h.k.) HTML xabarga xavfsiz qo'yish uchun: `<`, `&` belgilari
+    ekranlanmasa Telegram xabarni rad etadi va o'yin to'xtab qolishi mumkin."""
+    return html.escape(text, quote=False)
+
+
 def mention(player) -> str:
-    return f'<a href="tg://user?id={player.user_id}">{player.full_name}</a>'
+    return f'<a href="tg://user?id={player.user_id}">{esc(player.full_name)}</a>'
 
 
 def build_target_keyboard(game: Game, exclude_ids: set[int], prefix: str) -> InlineKeyboardMarkup:

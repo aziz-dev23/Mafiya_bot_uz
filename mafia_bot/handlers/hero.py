@@ -67,13 +67,14 @@ async def on_hero_buy(callback: CallbackQuery) -> None:
         await callback.answer("Sizda allaqachon Geroy bor.", show_alert=True)
         return
 
-    user_row = await db.get_user(callback.from_user.id)
-    if user_row["diamonds"] < HERO_BUY_PRICE_DIAMONDS:
+    if not await db.spend_balance(callback.from_user.id, "diamonds", HERO_BUY_PRICE_DIAMONDS):
         await callback.answer("Balansingizda yetarli 💎 yo'q.", show_alert=True)
         return
-
-    await db.add_balance(callback.from_user.id, diamonds=-HERO_BUY_PRICE_DIAMONDS)
-    await db.set_hero_level(callback.from_user.id, 1)
+    if not await db.create_hero(callback.from_user.id):
+        # Ikki marta tez bosilgan: Geroy allaqachon yaratilgan — ikkinchi to'lov qaytariladi.
+        await db.add_balance(callback.from_user.id, diamonds=HERO_BUY_PRICE_DIAMONDS)
+        await callback.answer("Sizda allaqachon Geroy bor.", show_alert=True)
+        return
     await callback.answer("✅ Geroy sotib olindi!")
 
     text, kb = await build_hero_view(callback.from_user.id)
@@ -91,14 +92,12 @@ async def on_hero_levelup(callback: CallbackQuery) -> None:
         await callback.answer("Avval Geroyni sotib oling.", show_alert=True)
         return
 
-    user_row = await db.get_user(callback.from_user.id)
-    if user_row["diamonds"] < HERO_LEVEL_UP_PRICE_DIAMONDS:
+    if not await db.spend_balance(callback.from_user.id, "diamonds", HERO_LEVEL_UP_PRICE_DIAMONDS):
         await callback.answer("Balansingizda yetarli 💎 yo'q.", show_alert=True)
         return
 
-    await db.add_balance(callback.from_user.id, diamonds=-HERO_LEVEL_UP_PRICE_DIAMONDS)
-    await db.set_hero_level(callback.from_user.id, level + 1)
-    await callback.answer(f"✅ Geroy {level + 1}-darajaga o'tdi!")
+    new_level = await db.increment_hero_level(callback.from_user.id)
+    await callback.answer(f"✅ Geroy {new_level}-darajaga o'tdi!")
 
     text, kb = await build_hero_view(callback.from_user.id)
     try:

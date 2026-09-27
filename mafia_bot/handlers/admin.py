@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import db
 from config import ADMIN_IDS
 from economy import ITEMS
+from utils import esc
 
 router = Router(name="admin")
 
@@ -22,7 +23,7 @@ async def build_profile_view(
     inventory_by_key = {row["item_key"]: row for row in inventory_rows}
 
     lines = [
-        f"👤 <b>{full_name}</b>",
+        f"👤 <b>{esc(full_name)}</b>",
         f"🆔 ID: <code>{user_id}</code>",
         "",
         f"💵 Dollar: {user_row['dollars']}",

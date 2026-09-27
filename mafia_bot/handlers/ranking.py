@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 import db
+from utils import esc
 
 router = Router(name="ranking")
 
@@ -15,7 +16,7 @@ async def _reply_top(message: Message, title: str, since: int | None) -> None:
 
     lines = [title, ""]
     for i, row in enumerate(rows, 1):
-        lines.append(f"{i}. {row['full_name']} — {row['total']} ball")
+        lines.append(f"{i}. {esc(row['full_name'])} — {row['total']} ball")
     await message.answer("\n".join(lines))
 
 

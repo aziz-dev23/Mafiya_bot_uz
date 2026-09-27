@@ -7,7 +7,7 @@ from economy import HERO_ELIGIBLE_ROLES
 from game.engine import night_all_done
 from game.manager import manager
 from game.models import GameState, Role
-from utils import build_mafia_kill_keyboard
+from utils import build_mafia_kill_keyboard, esc
 
 router = Router(name="night")
 
@@ -34,7 +34,7 @@ async def on_mafia_kill(callback: CallbackQuery, bot: Bot) -> None:
     await callback.answer(f"Siz {target.full_name}ni tanladingiz.")
     try:
         await callback.message.edit_text(
-            f"🔪 Siz tanladingiz: {target.full_name}\nBoshqa mafiyalarni kutmoqdamiz..."
+            f"🔪 Siz tanladingiz: {esc(target.full_name)}\nBoshqa mafiyalarni kutmoqdamiz..."
         )
     except TelegramBadRequest:
         pass
@@ -102,7 +102,7 @@ async def on_doctor_save(callback: CallbackQuery, bot: Bot) -> None:
     game.doctor_acted = True
     await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
     try:
-        await callback.message.edit_text(f"💉 Siz himoya qildingiz: {target.full_name}")
+        await callback.message.edit_text(f"💉 Siz himoya qildingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -149,7 +149,7 @@ async def on_detective_check(callback: CallbackQuery, bot: Bot) -> None:
 
     await callback.answer()
     try:
-        await callback.message.edit_text(f"🕵️ Tekshiruv natijasi: {target.full_name} — {result}")
+        await callback.message.edit_text(f"🕵️ Tekshiruv natijasi: {esc(target.full_name)} — {result}")
     except TelegramBadRequest:
         pass
 
@@ -183,7 +183,7 @@ async def on_killer_kill(callback: CallbackQuery, bot: Bot) -> None:
     game.killer_acted = True
     await callback.answer(f"Siz {target.full_name}ni tanladingiz.")
     try:
-        await callback.message.edit_text(f"🔪 Siz tanladingiz: {target.full_name}")
+        await callback.message.edit_text(f"🔪 Siz tanladingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -217,7 +217,7 @@ async def on_hitman_kill(callback: CallbackQuery, bot: Bot) -> None:
     game.hitman_acted = True
     await callback.answer(f"Siz {target.full_name}ni tanladingiz.")
     try:
-        await callback.message.edit_text(f"🥷 Siz tanladingiz: {target.full_name}")
+        await callback.message.edit_text(f"🥷 Siz tanladingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -246,7 +246,9 @@ async def on_poisoner_dose(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
-    first_time = not game.poisoner_acted
+    if game.poisoner_acted:
+        await callback.answer("Siz bu kecha allaqachon dori bergansiz.", show_alert=True)
+        return
     game.poisoner_acted = True
     if target.items.get("poison_shield", 0) > 0 and await db.consume_item(target.user_id, "poison_shield"):
         target.items["poison_shield"] -= 1
@@ -256,12 +258,11 @@ async def on_poisoner_dose(callback: CallbackQuery, bot: Bot) -> None:
 
     await callback.answer(f"Siz {target.full_name}ga dori berdingiz.")
     try:
-        await callback.message.edit_text(f"💊 Siz dori berdingiz: {target.full_name}")
+        await callback.message.edit_text(f"💊 Siz dori berdingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
-    if first_time:
-        await bot.send_message(game.chat_id, "💊 Kezuvchi kimgadir dori berdi.")
+    await bot.send_message(game.chat_id, "💊 Kezuvchi kimgadir dori berdi.")
 
     if night_all_done(game) and game.night_event:
         game.night_event.set()
@@ -290,7 +291,7 @@ async def on_wanderer_visit(callback: CallbackQuery, bot: Bot) -> None:
     game.wanderer_acted = True
     await callback.answer(f"Siz {target.full_name}ning oldiga bordingiz.")
     try:
-        await callback.message.edit_text(f"🚶 Siz tashrif buyurdingiz: {target.full_name}")
+        await callback.message.edit_text(f"🚶 Siz tashrif buyurdingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -328,7 +329,7 @@ async def on_don_check(callback: CallbackQuery, bot: Bot) -> None:
 
     await callback.answer()
     try:
-        await callback.message.edit_text(f"🎩 Aniqlash natijasi: {target.full_name} — {result}")
+        await callback.message.edit_text(f"🎩 Aniqlash natijasi: {esc(target.full_name)} — {result}")
     except TelegramBadRequest:
         pass
 
@@ -357,7 +358,7 @@ async def on_hero_shot(callback: CallbackQuery) -> None:
     game.dawn_acted.add(callback.from_user.id)
     await callback.answer(f"Siz {target.full_name}ni otishga qaror qildingiz.")
     try:
-        await callback.message.edit_text(f"🥷 Siz otishga qaror qildingiz: {target.full_name}")
+        await callback.message.edit_text(f"🥷 Siz otishga qaror qildingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -388,7 +389,7 @@ async def on_advokat_shield(callback: CallbackQuery, bot: Bot) -> None:
     game.advokat_acted = True
     await callback.answer(f"Siz {target.full_name}ni himoya qilyapsiz.")
     try:
-        await callback.message.edit_text(f"👨‍💼 Siz himoya qildingiz: {target.full_name}")
+        await callback.message.edit_text(f"👨‍💼 Siz himoya qildingiz: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 
@@ -420,7 +421,7 @@ async def on_sorcerer_revenge(callback: CallbackQuery) -> None:
     game.revenge_target = target_id
     await callback.answer(f"O'ch: {target.full_name}")
     try:
-        await callback.message.edit_text(f"🧞‍♂️ O'ch tanlandi: {target.full_name}")
+        await callback.message.edit_text(f"🧞‍♂️ O'ch tanlandi: {esc(target.full_name)}")
     except TelegramBadRequest:
         pass
 

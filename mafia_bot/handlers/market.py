@@ -48,14 +48,11 @@ async def cmd_sell(message: Message) -> None:
         return
 
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    user_row = await db.get_user(message.from_user.id)
     sell_col = CURRENCY_COLUMN[sell_currency]
-    if user_row[sell_col] < sell_amount:
+    # Escrow: hold the offered amount out of the seller's balance until sold or cancelled.
+    if not await db.spend_balance(message.from_user.id, sell_col, sell_amount):
         await message.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[sell_currency]} yo'q.")
         return
-
-    # Escrow: hold the offered amount out of the seller's balance until sold or cancelled.
-    await db.add_balance(message.from_user.id, **{sell_col: -sell_amount})
     listing_id = await db.create_listing(message.from_user.id, sell_currency, sell_amount, price_currency, price_amount)
 
     await message.answer(
@@ -128,8 +125,9 @@ async def cmd_market(message: Message) -> None:
 
 @router.callback_query(F.data.startswith("market:buy:"))
 async def on_market_buy(callback: CallbackQuery, bot: Bot) -> None:
-    listing_id = int(callback.data.split(":")[2])
-    listing = await db.get_listing(listing_id)
+    raw = callback.data.split(":")[2]
+    listing = await db.get_listing(int(raw)) if raw.isdigit() else None
+    listing_id = listing["listing_id"] if listing else None
     if not listing or listing["status"] != "active":
         await callback.answer("Bu e'lon endi mavjud emas.", show_alert=True)
         return
@@ -138,22 +136,20 @@ async def on_market_buy(callback: CallbackQuery, bot: Bot) -> None:
         return
 
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    buyer_row = await db.get_user(callback.from_user.id)
     price_col = CURRENCY_COLUMN[listing["price_currency"]]
-    if buyer_row[price_col] < listing["price_amount"]:
+    if not await db.spend_balance(callback.from_user.id, price_col, listing["price_amount"]):
         await callback.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[listing['price_currency']]} yo'q.", show_alert=True)
         return
 
     claimed = await db.transition_listing(listing_id, "sold")
     if not claimed:
+        # Boshqa xaridor oldinroq ulgurdi — to'langan summa qaytariladi.
+        await db.add_balance(callback.from_user.id, **{price_col: listing["price_amount"]})
         await callback.answer("Bu e'lonni boshqa birov sotib oldi.", show_alert=True)
         return
 
     sell_col = CURRENCY_COLUMN[listing["sell_currency"]]
-    await db.add_balance(
-        callback.from_user.id,
-        **{price_col: -listing["price_amount"], sell_col: listing["sell_amount"]},
-    )
+    await db.add_balance(callback.from_user.id, **{sell_col: listing["sell_amount"]})
     await db.add_balance(listing["seller_id"], **{price_col: listing["price_amount"]})
 
     await callback.answer("Xarid muvaffaqiyatli! ✅")

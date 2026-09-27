@@ -147,6 +147,22 @@ async def add_balance(user_id: int, dollars: int = 0, diamonds: int = 0, coins: 
     await _conn.commit()
 
 
+_BALANCE_COLUMNS = {"dollars", "diamonds", "coins"}
+
+
+async def spend_balance(user_id: int, column: str, amount: int) -> bool:
+    """Balansdan atomik ayiradi: mablag' yetarli bo'lmasa hech narsa o'zgarmaydi va False qaytadi.
+    Tekshiruv va ayirish bitta SQL so'rovda — tugmani tez-tez bosish balansni minusga tushira olmaydi."""
+    if column not in _BALANCE_COLUMNS or amount <= 0:
+        raise ValueError(f"invalid spend: {column}={amount}")
+    cur = await _conn.execute(
+        f"UPDATE users SET {column} = {column} - ? WHERE user_id = ? AND {column} >= ?",
+        (amount, user_id, amount),
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
 async def record_game_result(user_id: int, won: bool) -> None:
     await _conn.execute(
         "UPDATE users SET games = games + 1, wins = wins + ? WHERE user_id = ?",
@@ -215,13 +231,20 @@ async def get_hero_level(user_id: int) -> int:
     return row["level"] if row else 0
 
 
-async def set_hero_level(user_id: int, level: int) -> None:
-    await _conn.execute(
-        "INSERT INTO hero (user_id, level) VALUES (?, ?) "
-        "ON CONFLICT(user_id) DO UPDATE SET level = excluded.level",
-        (user_id, level),
-    )
+async def create_hero(user_id: int) -> bool:
+    """Geroyni 1-daraja bilan yaratadi; allaqachon bo'lsa False qaytaradi."""
+    cur = await _conn.execute("INSERT OR IGNORE INTO hero (user_id, level) VALUES (?, 1)", (user_id,))
     await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def increment_hero_level(user_id: int) -> int | None:
+    """Darajani atomik +1 qiladi va yangi darajani qaytaradi (Geroy bo'lmasa None)."""
+    cur = await _conn.execute("UPDATE hero SET level = level + 1 WHERE user_id = ? AND level > 0", (user_id,))
+    await _conn.commit()
+    if cur.rowcount == 0:
+        return None
+    return await get_hero_level(user_id)
 
 
 async def create_order(user_id: int, amount: int, price_som: int) -> int:

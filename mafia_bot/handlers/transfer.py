@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 from economy import CURRENCY_COLUMN, CURRENCY_EMOJI
+from utils import esc
 
 router = Router(name="transfer")
 
@@ -31,12 +32,18 @@ async def _start_transfer(message: Message, state: FSMContext, currency: str) ->
     )
 
 
-@router.message(Command("send"))
+@router.message(Command("send", "sendgem"), F.chat.type != "private")
+async def cmd_send_in_group(message: Message) -> None:
+    # Guruhda boshlansa, bot shu odamning keyingi har bir guruh xabarini qabul qiluvchi deb o'qib qolardi.
+    await message.answer("💸 Pul/olmos yuborish faqat bot bilan shaxsiy chatda ishlaydi.")
+
+
+@router.message(Command("send"), F.chat.type == "private")
 async def cmd_send_dollar(message: Message, state: FSMContext) -> None:
     await _start_transfer(message, state, "dollar")
 
 
-@router.message(Command("sendgem"))
+@router.message(Command("sendgem"), F.chat.type == "private")
 async def cmd_send_diamond(message: Message, state: FSMContext) -> None:
     await _start_transfer(message, state, "diamond")
 
@@ -53,7 +60,7 @@ async def on_menu_send_diamond(callback: CallbackQuery, state: FSMContext) -> No
     await _start_transfer(callback.message, state, "diamond")
 
 
-@router.message(Transfer.recipient)
+@router.message(Transfer.recipient, F.chat.type == "private")
 async def on_recipient(message: Message, state: FSMContext) -> None:
     raw = (message.text or "").strip().lstrip("@")
 
@@ -71,10 +78,10 @@ async def on_recipient(message: Message, state: FSMContext) -> None:
 
     await state.update_data(recipient_id=recipient_row["user_id"], recipient_name=recipient_row["full_name"])
     await state.set_state(Transfer.amount)
-    await message.answer(f"Qabul qiluvchi: <b>{recipient_row['full_name']}</b>\nEndi miqdorni kiriting (butun son):")
+    await message.answer(f"Qabul qiluvchi: <b>{esc(recipient_row['full_name'])}</b>\nEndi miqdorni kiriting (butun son):")
 
 
-@router.message(Transfer.amount)
+@router.message(Transfer.amount, F.chat.type == "private")
 async def on_amount(message: Message, state: FSMContext) -> None:
     raw = (message.text or "").strip()
     if not raw.isdigit() or int(raw) <= 0:
@@ -102,7 +109,7 @@ async def on_amount(message: Message, state: FSMContext) -> None:
         ]
     )
     await message.answer(
-        f"<b>{data['recipient_name']}</b>ga {amount}{CURRENCY_EMOJI[currency]} yubormoqchisiz. Tasdiqlaysizmi?",
+        f"<b>{esc(data['recipient_name'])}</b>ga {amount}{CURRENCY_EMOJI[currency]} yubormoqchisiz. Tasdiqlaysizmi?",
         reply_markup=kb,
     )
 
@@ -120,32 +127,30 @@ async def on_transfer_cancel(callback: CallbackQuery, state: FSMContext) -> None
 @router.callback_query(F.data == "transfer:confirm", Transfer.confirm)
 async def on_transfer_confirm(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     data = await state.get_data()
+    # Holat darhol tozalanadi: "Tasdiqlash" ikki marta tez bosilsa, ikkinchisi endi Transfer.confirm
+    # holatiga mos kelmaydi va pul ikki marta yuborilmaydi.
+    await state.clear()
     currency = data["currency"]
     amount = data["amount"]
     recipient_id = data["recipient_id"]
     recipient_name = data["recipient_name"]
     col = CURRENCY_COLUMN[currency]
 
-    sender_row = await db.get_user(callback.from_user.id)
-    if not sender_row or sender_row[col] < amount:
+    if not await db.spend_balance(callback.from_user.id, col, amount):
         await callback.answer("Balansingiz yetarli emas.", show_alert=True)
-        await state.clear()
         return
-
-    await db.add_balance(callback.from_user.id, **{col: -amount})
     await db.add_balance(recipient_id, **{col: amount})
-    await state.clear()
 
     await callback.answer("Yuborildi ✅")
     try:
-        await callback.message.edit_text(f"✅ {recipient_name}ga {amount}{CURRENCY_EMOJI[currency]} yuborildi.")
+        await callback.message.edit_text(f"✅ {esc(recipient_name)}ga {amount}{CURRENCY_EMOJI[currency]} yuborildi.")
     except TelegramBadRequest:
         pass
 
     try:
         await bot.send_message(
             recipient_id,
-            f"💌 Sizga <b>{callback.from_user.full_name}</b> tomonidan "
+            f"💌 Sizga <b>{esc(callback.from_user.full_name)}</b> tomonidan "
             f"{amount}{CURRENCY_EMOJI[currency]} yuborildi!",
         )
     except (TelegramForbiddenError, TelegramBadRequest):
