@@ -91,6 +91,20 @@ async def init_db() -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_transfers_sender ON transfers (sender_id, created_at);
 
+        -- Telegram Stars to'lovlari. charge_id — Telegram'ning telegram_payment_charge_id si:
+        -- PRIMARY KEY bo'lgani uchun bitta to'lov ikki marta hisoblanmaydi.
+        CREATE TABLE IF NOT EXISTS star_payments (
+            charge_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            diamonds INTEGER NOT NULL,
+            stars INTEGER NOT NULL,
+            payload TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'paid',
+            created_at INTEGER NOT NULL,
+            refunded_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_star_payments_user ON star_payments (user_id, created_at);
+
         CREATE TABLE IF NOT EXISTS group_settings (
             chat_id INTEGER PRIMARY KEY,
             settings TEXT NOT NULL
@@ -578,3 +592,59 @@ async def points_rank(user_id: int, since: int | None = None) -> tuple[int, int]
     higher = (await cur.fetchone())["higher"]
     await cur.close()
     return higher + 1, total
+
+
+async def record_star_payment(charge_id: str, user_id: int, diamonds: int, stars: int, payload: str) -> bool:
+    """To'lovni saqlaydi va olmosni qo'shadi (bitta commit'da). Shu charge_id allaqachon
+    bo'lsa (Telegram update'ni qayta yuborgan) hech narsa qilmaydi va False qaytaradi."""
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO star_payments (charge_id, user_id, diamonds, stars, payload, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (charge_id, user_id, diamonds, stars, payload, int(time.time())),
+    )
+    if cur.rowcount == 0:
+        return False
+    await _conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (diamonds, user_id))
+    await _conn.commit()
+    return True
+
+
+async def get_star_payment(charge_id: str) -> aiosqlite.Row | None:
+    cur = await _conn.execute("SELECT * FROM star_payments WHERE charge_id = ?", (charge_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row
+
+
+async def user_star_payments(user_id: int, limit: int = 10) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT * FROM star_payments WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", (user_id, limit)
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def set_star_payment_status(charge_id: str, from_status: str, to_status: str) -> bool:
+    """Holatni atomik o'zgartiradi (masalan paid -> refunded); boshqa holatda bo'lsa False."""
+    cur = await _conn.execute(
+        "UPDATE star_payments SET status = ?, refunded_at = CASE WHEN ? = 'refunded' THEN ? ELSE refunded_at END "
+        "WHERE charge_id = ? AND status = ?",
+        (to_status, to_status, int(time.time()), charge_id, from_status),
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def take_diamonds(user_id: int, amount: int, allow_partial: bool) -> int | None:
+    """Pul qaytarilganda olmosni balansdan oladi. Yetarli bo'lmasa: allow_partial=False — None
+    (hech narsa o'zgarmaydi), True — bor olmosni oladi. Olingan miqdorni qaytaradi."""
+    if await spend_balance(user_id, "diamonds", amount):
+        return amount
+    if not allow_partial:
+        return None
+    row = await get_user(user_id)
+    available = max(0, row["diamonds"]) if row else 0
+    if available and not await spend_balance(user_id, "diamonds", available):
+        return 0
+    return available

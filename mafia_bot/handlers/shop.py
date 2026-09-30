@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
-from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
+from config import ADMIN_IDS, CARD_PAYMENTS_ENABLED, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
 import texts
 from economy import (
     COIN_EXCHANGE_AMOUNTS,
@@ -12,6 +12,7 @@ from economy import (
     CURRENCY_EMOJI,
     DIAMOND_PACKAGES,
     DIAMOND_TO_DOLLAR_RATE,
+    STARS_PACKAGES,
 )
 from utils import esc
 
@@ -36,16 +37,33 @@ def build_shop_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def card_payments_available() -> bool:
+    return CARD_PAYMENTS_ENABLED and bool(PAYMENT_CARD_NUMBER)
+
+
+def shop_view() -> tuple[str, InlineKeyboardMarkup]:
+    """Telegram Stars paketlari birinchi, karta orqali to'lov (yoqilgan bo'lsa) — keyin."""
+    stars_buttons = [
+        InlineKeyboardButton(
+            text=texts.SHOP_STARS_BUTTON.format(diamonds=diamonds, stars=stars),
+            callback_data=f"stars:buy:{diamonds}",
+        )
+        for diamonds, stars in STARS_PACKAGES
+    ]
+    rows = [stars_buttons[i : i + 2] for i in range(0, len(stars_buttons), 2)]
+    lines = [texts.SHOP_TITLE, "", texts.SHOP_STARS_SECTION]
+    if card_payments_available():
+        rows += build_shop_keyboard().inline_keyboard
+        lines += ["", texts.SHOP_CARD_SECTION]
+    lines += ["", texts.SHOP_FOOTER]
+    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 @router.message(Command("shop", "olmos"))
 async def cmd_shop(message: Message) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    if not PAYMENT_CARD_NUMBER:
-        await message.answer("Hozircha olmos sotib olish ishlamayapti, keyinroq urinib ko'ring.")
-        return
-    await message.answer(
-        "💎 <b>OLMOS DO'KONI</b>\nKerakli paketni tanlang:",
-        reply_markup=build_shop_keyboard(),
-    )
+    text, kb = shop_view()
+    await message.answer(text, reply_markup=kb)
 
 
 EXCHANGE_AMOUNTS = {amount for amount, _ in DIAMOND_PACKAGES}
@@ -122,8 +140,8 @@ async def on_exchange_coin(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("shop:buy:"))
 async def on_buy(callback: CallbackQuery, bot: Bot) -> None:
-    if not PAYMENT_CARD_NUMBER:
-        await callback.answer("Hozircha ishlamayapti.", show_alert=True)
+    if not card_payments_available():
+        await callback.answer(texts.SHOP_CARD_DISABLED, show_alert=True)
         return
 
     raw = callback.data.split(":")[2]

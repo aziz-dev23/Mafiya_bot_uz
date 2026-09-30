@@ -3,7 +3,6 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 import db
-from config import PAYMENT_CARD_NUMBER
 from handlers import admin, items, market, shop
 import texts
 from texts import HELP_TEXT, ITEM_STORE_RULE
@@ -103,15 +102,8 @@ async def on_market(callback: CallbackQuery) -> None:
 async def on_shop(callback: CallbackQuery) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    if not PAYMENT_CARD_NUMBER:
-        await callback.message.answer(
-            "Hozircha olmos sotib olish ishlamayapti, keyinroq urinib ko'ring.", reply_markup=_with_back(None)
-        )
-        return
-    await callback.message.answer(
-        "💎 <b>OLMOS DO'KONI</b>\nKerakli paketni tanlang:",
-        reply_markup=_with_back(shop.build_shop_keyboard()),
-    )
+    text, kb = shop.shop_view()
+    await callback.message.answer(text, reply_markup=_with_back(kb))
 
 
 @router.callback_query(F.data == "menu:exchange")

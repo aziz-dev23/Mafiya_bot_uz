@@ -29,6 +29,22 @@ KILLER_SOLO_WIN_DOLLARS = 5000
 HITMAN_CONTRACT_BONUS_DOLLARS = 2000
 
 # 1 olmos qanchaga (Dollarga) almashtirilishini belgilaydi (/almashtir buyrug'i).
+# Telegram Stars (XTR) orqali olmos paketlari: (olmos miqdori, narxi Stars'da).
+# Baza narx: 1💎 = STARS_PER_DIAMOND⭐; katta paketlarda so'mdagi paketlar bilan bir xil chegirma
+# (so'mdagi narx / DIAMOND_PRICE_SOM × STARS_PER_DIAMOND, yaxlitlangan).
+STARS_PER_DIAMOND = 5
+STARS_PACKAGES = [
+    (1, 5),
+    (5, 25),
+    (10, 50),
+    (30, 146),
+    (50, 247),
+    (799, 3591),
+    (899, 3818),
+    (999, 3990),
+]
+STARS_CURRENCY = "XTR"
+
 DIAMOND_TO_DOLLAR_RATE = 250
 # 1 coin qanchaga (Dollarga) almashtirilishi va /almashtir dagi coin tugmalari.
 COIN_TO_DOLLAR_RATE = 10

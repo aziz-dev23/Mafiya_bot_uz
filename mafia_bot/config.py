@@ -53,3 +53,7 @@ PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "")
 PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "")
 # To'lov chekini (skrinshot) qabul qiladigan Telegram username (@ belgisisiz ham bo'ladi)
 PAYMENT_CONTACT_USERNAME = os.getenv("PAYMENT_CONTACT_USERNAME", "theaziz_art23").strip().lstrip("@")
+# Karta orqali (qo'lda tasdiqlanadigan) to'lovni yoqish/o'chirish. Telegram Stars har doim ishlaydi.
+CARD_PAYMENTS_ENABLED = os.getenv("CARD_PAYMENTS_ENABLED", "1").strip().lower() in ("1", "true", "yes", "on")
+# /support va /paysupport da ko'rsatiladigan yordam kontakti (@ belgisisiz).
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", PAYMENT_CONTACT_USERNAME).strip().lstrip("@")

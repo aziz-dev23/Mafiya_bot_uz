@@ -130,7 +130,7 @@ HELP_TEXT = (
     "/stop — joriy o'yinni to'xtatish (faqat guruh adminlari)\n\n"
     "<b>Profil va iqtisodiyot:</b>\n"
     "/profile — balansingiz, statistikangiz va ballaringiz (Dollar 💵, Olmos 💎, Coin 🪙)\n"
-    "/shop — olmos sotib olish (karta orqali, admin tasdig'idan so'ng)\n"
+    "/shop — olmos sotib olish (Telegram Stars ⭐)\n"
     "/almashtir — olmos 💎 yoki coin 🪙 ni Dollarga almashtirish\n"
     "/market — bozordagi faol e'lonlarni ko'rish va sotib olish\n"
     "/dokon — buyumlar do'koni (Himoya, Soxta hujjat, Ovozdan himoya, Miltiq, Sehrli oyna)\n"
@@ -143,7 +143,8 @@ HELP_TEXT = (
     "<b>Reyting:</b>\n"
     "/top — umumiy reyting\n"
     "/top1 — kunlik, /top7 — haftalik, /top30 — oylik reyting\n\n"
-    "/help — shu yordam xabari\n\n"
+    "/help — shu yordam xabari\n"
+    "/support — yordam, /paysupport — to'lovlar bo'yicha yordam, /terms — foydalanish shartlari\n\n"
     "O'yin qoidalari: tunda mafiya bittasini yo'q qiladi, doktor birini "
     "himoya qiladi, komissar birini tekshiradi. Kunduzi hamma birgalikda "
     "muhokama qilib, ovoz berish orqali kimnidir shahardan haydaydi. "
@@ -425,3 +426,63 @@ SETTINGS_HOUR_MINUS = "−1 soat"
 SETTINGS_HOUR_PLUS = "+1 soat"
 SETTINGS_MINUTES_MINUS = "−{step} daq"
 SETTINGS_MINUTES_PLUS = "+{step} daq"
+
+# ---------- 5-bosqich: Telegram Stars ----------
+SHOP_TITLE = "💎 <b>OLMOS DO'KONI</b>"
+SHOP_STARS_SECTION = "⭐ <b>Telegram Stars</b> — darhol va avtomatik:"
+SHOP_CARD_SECTION = "💳 <b>Karta orqali</b> — administrator tasdiqlagach (pastki tugmalar)."
+SHOP_FOOTER = "Savollar: /paysupport · Shartlar: /terms"
+SHOP_STARS_BUTTON = "{diamonds}💎 — {stars}⭐"
+SHOP_CARD_DISABLED = "Karta orqali to'lov hozir o'chirilgan. Telegram Stars orqali sotib oling: /shop"
+INVOICE_TITLE = "{diamonds} Olmos"
+INVOICE_DESCRIPTION = "Mafiya o'yini uchun {diamonds}💎 olmos. To'lovdan so'ng hisobingizga darhol qo'shiladi."
+INVOICE_LABEL = "{diamonds}💎"
+PRECHECKOUT_ERROR = "To'lov ma'lumotlari noto'g'ri. /shop orqali qaytadan urinib ko'ring."
+STARS_PAYMENT_OK = "✅ To'lov qabul qilindi! {diamonds}💎 hisobingizga qo'shildi.\nTo'lov ID: <code>{charge_id}</code>"
+STARS_PAYMENT_ADMIN = "⭐ Stars to'lovi: {name} (id=<code>{user_id}</code>) — {diamonds}💎 / {stars}⭐\nID: <code>{charge_id}</code>"
+STARS_PAYMENT_BAD = "⚠️ Noma'lum Stars to'lovi (payload: <code>{payload}</code>), ID: <code>{charge_id}</code> — qo'lda tekshiring."
+
+PAYSUPPORT_TEXT = (
+    "🧾 <b>To'lovlar bo'yicha yordam</b>\n\n"
+    "To'lov bilan muammo bo'lsa (olmos tushmadi, xato to'lov va h.k.) @{support} ga yozing va "
+    "quyidagi to'lov ID sini yuboring. Murojaatlar 72 soat ichida ko'rib chiqiladi.\n\n"
+    "Pul qaytarish shartlari: /terms"
+)
+PAYSUPPORT_NO_PAYMENTS = "Sizda hali Telegram Stars to'lovlari yo'q."
+PAYSUPPORT_PAYMENTS_HEADER = "<b>Oxirgi to'lovlaringiz:</b>"
+PAYSUPPORT_PAYMENT_LINE = "{date} — {diamonds}💎 / {stars}⭐ — {status}\n<code>{charge_id}</code>"
+PAYMENT_STATUS_NAMES = {"paid": "✅ to'langan", "refunding": "⏳ qaytarilmoqda", "refunded": "↩️ qaytarilgan"}
+SUPPORT_TEXT = (
+    "🆘 <b>Yordam</b>\n\n"
+    "O'yin qoidalari: /help va /rollar\n"
+    "To'lovlar bo'yicha: /paysupport\n"
+    "Boshqa savollar: @{support}"
+)
+TERMS_TEXT = (
+    "📜 <b>Foydalanish shartlari</b>\n\n"
+    "1. Olmos (💎) — faqat shu bot ichida ishlatiladigan raqamli valyuta. Uni haqiqiy pulga "
+    "qaytarib almashtirib bo'lmaydi.\n"
+    "2. Olmos Telegram Stars orqali to'lov tasdiqlanishi bilan darhol hisobingizga qo'shiladi.\n"
+    "3. Pul qaytarish: agar olmos hisobingizga tushmagan bo'lsa yoki texnik xato bo'lsa, to'lovdan "
+    "keyin 14 kun ichida /paysupport orqali murojaat qiling. Olingan olmos hali sarflanmagan bo'lsa, "
+    "Stars to'liq qaytariladi va olmos hisobdan yechiladi.\n"
+    "4. Sarflangan olmos (buyum, Geroy, almashtirish, o'tkazma) uchun pul qaytarilmaydi.\n"
+    "5. Qoidalarni buzgan (firibgarlik, xatolardan foydalanish) akkauntlar cheklanishi mumkin.\n"
+    "6. Savollar: /support"
+)
+
+# Admin: pulni qaytarish
+REFUND_USAGE = "Foydalanish: /refund &lt;to'lov ID&gt; [force]"
+REFUND_NOT_FOUND = "Bunday to'lov topilmadi."
+REFUND_WRONG_STATUS = "Bu to'lov qaytarib bo'lmaydigan holatda: {status}."
+REFUND_NOT_ENOUGH = (
+    "Foydalanuvchida {diamonds}💎 yo'q (olmos sarflangan). Baribir qaytarish uchun: "
+    "<code>/refund {charge_id} force</code> — bor olmosi yechiladi."
+)
+REFUND_API_ERROR = "❌ Telegram pulni qaytarmadi: {error}. Olmos joyiga qaytarildi."
+REFUND_DONE = "✅ {stars}⭐ qaytarildi, {taken}💎 yechildi (to'lov <code>{charge_id}</code>)."
+REFUND_USER_NOTICE = "↩️ {stars}⭐ to'lovingiz qaytarildi, hisobingizdan {taken}💎 yechildi."
+REFUND_EXTERNAL_ADMIN = (
+    "↩️ Telegram orqali qaytarilgan to'lov: id=<code>{user_id}</code>, {stars}⭐, "
+    "{taken}/{diamonds}💎 yechildi. ID: <code>{charge_id}</code>"
+)

@@ -19,6 +19,7 @@ from aiogram.methods import (
     ForwardMessage,
     SendDocument,
     SendMessage,
+    SendInvoice,
     SendPhoto,
     TelegramMethod,
 )
@@ -37,6 +38,7 @@ THROTTLED_METHODS = (
     SendMessage,
     SendPhoto,
     SendDocument,
+    SendInvoice,
     EditMessageText,
     EditMessageReplyMarkup,
     EditMessageCaption,

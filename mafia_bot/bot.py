@@ -25,6 +25,7 @@ from handlers import (
     night,
     ranking,
     shop,
+    stars,
     transfer,
 )
 from autogame import auto_game_loop
@@ -52,6 +53,7 @@ async def main() -> None:
     dp.include_router(common.router)
     dp.include_router(menu.router)
     dp.include_router(shop.router)
+    dp.include_router(stars.router)
     dp.include_router(market.router)
     dp.include_router(items.router)
     dp.include_router(hero.router)
@@ -86,6 +88,9 @@ async def main() -> None:
             BotCommand(command="rollar", description="Barcha rollar tavsifi"),
             BotCommand(command="sozlamalar", description="Guruh sozlamalari (adminlar uchun)"),
             BotCommand(command="help", description="Yordam"),
+            BotCommand(command="support", description="Yordam va aloqa"),
+            BotCommand(command="paysupport", description="To'lovlar bo'yicha yordam"),
+            BotCommand(command="terms", description="Foydalanish shartlari"),
         ]
     )
 
