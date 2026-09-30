@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 from economy import CURRENCY_COLUMN, CURRENCY_EMOJI, ITEMS
+from texts import ITEM_DESCRIPTIONS, ITEM_STORE_RULE
 
 router = Router(name="items")
 
@@ -40,7 +41,7 @@ async def cmd_store(message: Message) -> None:
         "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
         "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi — "
         "/sumka orqali o'chirib qo'yishingiz mumkin.\n\n"
-        "Kerakli buyumni tanlang:",
+        f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
         reply_markup=build_store_keyboard(),
     )
 
@@ -56,7 +57,8 @@ async def on_buy_item(callback: CallbackQuery) -> None:
     await callback.answer()
     try:
         await callback.message.edit_text(
-            f"{item['emoji']} <b>{item['name']}</b> — {item['price']}{CURRENCY_EMOJI[item['currency']]}/dona\n\n"
+            f"{item['emoji']} <b>{item['name']}</b> — {item['price']}{CURRENCY_EMOJI[item['currency']]}/dona\n"
+            f"<i>{ITEM_DESCRIPTIONS.get(key, '')}</i>\n\n"
             "Nechta sotib olmoqchisiz?",
             reply_markup=build_quantity_keyboard(key),
         )
@@ -72,7 +74,7 @@ async def on_buy_item_back(callback: CallbackQuery) -> None:
             "🎒 <b>BUYUMLAR DO'KONI</b>\n"
             "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
             "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi.\n\n"
-            "Kerakli buyumni tanlang:",
+            f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
             reply_markup=build_store_keyboard(),
         )
     except TelegramBadRequest:

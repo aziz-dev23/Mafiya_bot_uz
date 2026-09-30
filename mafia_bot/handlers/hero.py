@@ -17,7 +17,8 @@ async def build_hero_view(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
             "🦸 <b>GEROY</b>\n\n"
             "Geroy — bir marta sotib olinadigan va profilingizda umrbod qoladigan maxsus buyum.\n"
             "Darajasini cheksiz oshirish mumkin.\n\n"
-            f"🎭 Mafiya, Don yoki Komissar bo'lib qolgan o'yinlarda tongda nishonni otish huquqi beradi.\n"
+            f"🎭 Mafiya, Don yoki Komissar bo'lib qolgan o'yinlarda tongda nishonni otish huquqi beradi "
+            "(bir o'yinda 1 marta).\n"
             f"🔓 {HERO_BYPASS_LEVEL}-darajadan boshlab zarbangiz HAR QANDAY himoyani chetlab o'tadi.\n\n"
             f"Narxi: {HERO_BUY_PRICE_DIAMONDS}💎"
         )

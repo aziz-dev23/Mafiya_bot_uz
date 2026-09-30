@@ -4,9 +4,9 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 from config import PAYMENT_CARD_NUMBER
-from economy import DIAMOND_TO_DOLLAR_RATE
 from handlers import admin, items, market, shop
-from texts import HELP_TEXT
+import texts
+from texts import HELP_TEXT, ITEM_STORE_RULE
 
 router = Router(name="menu")
 
@@ -16,8 +16,12 @@ MAIN_MENU_TEXT = (
     "barchasi bir-biriga qorishib ketgan.</i>\n\n"
     "🛡 <b>Tinch aholi</b> bo'lib shaharni qutqarasizmi yoki 🔪 <b>Mafiya</b> bo'lib "
     "hammani yo'q qilasizmi?\n\n"
-    "Guruhga qo'shing va <code>/mafia</code> yozing yoki pastdagi tugmalardan foydalaning 👇"
+    "Guruhga qo'shing va <code>/mafia</code> yozing yoki pastdagi tugmalardan foydalaning 👇\n\n"
+    + texts.ADD_TO_GROUP_RIGHTS
 )
+
+# Guruhga qo'shishda so'raladigan admin huquqlari: xabarlarni o'chirish, cheklash, qadash.
+ADD_TO_GROUP_ADMIN_RIGHTS = "delete_messages+restrict_members+pin_messages"
 
 BACK_BUTTON = InlineKeyboardButton(text="⬅️ Bosh menyu", callback_data="menu:back")
 
@@ -34,7 +38,8 @@ def build_main_menu_keyboard(bot_username: str) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="➕ Guruhingizga qo'shish",
-                    url=f"https://t.me/{bot_username}?startgroup=true",
+                    # admin= parametri guruhga qo'shishda kerakli huquqlarni oldindan belgilab beradi.
+                    url=f"https://t.me/{bot_username}?startgroup=true&admin={ADD_TO_GROUP_ADMIN_RIGHTS}",
                 )
             ],
             [
@@ -49,7 +54,7 @@ def build_main_menu_keyboard(bot_username: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💸 Pul yuborish", callback_data="menu:send_dollar"),
                 InlineKeyboardButton(text="💎 Olmos yuborish", callback_data="menu:send_diamond"),
             ],
-            [InlineKeyboardButton(text="💱 Olmosni pulga almashtirish", callback_data="menu:exchange")],
+            [InlineKeyboardButton(text=texts.MENU_EXCHANGE_BUTTON, callback_data="menu:exchange")],
             [InlineKeyboardButton(text="❓ Yordam", callback_data="menu:help")],
         ]
     )
@@ -82,7 +87,7 @@ async def on_store(callback: CallbackQuery) -> None:
         "🎒 <b>BUYUMLAR DO'KONI</b>\n"
         "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
         "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi.\n\n"
-        "Kerakli buyumni tanlang:",
+        f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
         reply_markup=_with_back(items.build_store_keyboard()),
     )
 
@@ -113,11 +118,7 @@ async def on_shop(callback: CallbackQuery) -> None:
 async def on_exchange(callback: CallbackQuery) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    await callback.message.answer(
-        "💱 <b>OLMOSNI PULGA ALMASHTIRISH</b>\n"
-        f"Kurs: 1💎 = {DIAMOND_TO_DOLLAR_RATE}💵\n\nKerakli miqdorni tanlang:",
-        reply_markup=_with_back(shop.build_exchange_keyboard()),
-    )
+    await callback.message.answer(shop.exchange_text(), reply_markup=_with_back(shop.build_exchange_keyboard()))
 
 
 @router.callback_query(F.data == "menu:help")

@@ -1,3 +1,6 @@
+import logging
+import os
+import shutil
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -8,6 +11,7 @@ from config import DB_PATH, TIMEZONE_OFFSET_HOURS
 _TZ = timezone(timedelta(hours=TIMEZONE_OFFSET_HOURS))
 
 _conn: aiosqlite.Connection | None = None
+logger = logging.getLogger(__name__)
 
 
 async def init_db() -> None:
@@ -66,11 +70,85 @@ async def init_db() -> None:
             user_id INTEGER PRIMARY KEY,
             level INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS migrations (
+            name TEXT PRIMARY KEY,
+            applied_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS weekly_rewards (
+            week_start INTEGER PRIMARY KEY,
+            paid_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id INTEGER NOT NULL,
+            recipient_id INTEGER NOT NULL,
+            currency TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_transfers_sender ON transfers (sender_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS group_settings (
+            chat_id INTEGER PRIMARY KEY,
+            settings TEXT NOT NULL
+        );
+
+        -- Har bir rol bo'yicha o'yinlar va g'alabalar (/profile statistikasi uchun).
+        CREATE TABLE IF NOT EXISTS role_stats (
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            games INTEGER NOT NULL DEFAULT 0,
+            wins INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, role)
+        );
+
+        -- Tunda yopilgan guruhlarning asl ruxsatlari (bot qayta ishga tushsa tiklash uchun).
+        CREATE TABLE IF NOT EXISTS chat_locks (
+            chat_id INTEGER PRIMARY KEY,
+            permissions TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
         """
     )
     await _conn.commit()
     await _ensure_column("users", "coins", "coins INTEGER NOT NULL DEFAULT 0")
     await _refund_legacy_hero_shot_items()
+    await _run_migrations()
+
+
+async def _migrate_killer_shield_x10() -> None:
+    """⛑ Qotildan himoya endi sarflanadi: avval (cheksiz) sotib olingan har bir dona 10 donaga aylanadi."""
+    await _conn.execute("UPDATE inventory SET count = count * 10 WHERE item_key = 'killer_shield' AND count > 0")
+
+
+# Tartib muhim: yangi migratsiyalar faqat ro'yxat oxiriga qo'shiladi.
+_MIGRATIONS = (
+    ("2026_09_killer_shield_x10", _migrate_killer_shield_x10),
+)
+
+
+async def _run_migrations() -> None:
+    """Har bir migratsiya bir marta ishlaydi. Birinchi yangi migratsiyadan oldin baza fayli nusxalanadi."""
+    cur = await _conn.execute("SELECT name FROM migrations")
+    applied = {row["name"] for row in await cur.fetchall()}
+    await cur.close()
+    pending = [(name, fn) for name, fn in _MIGRATIONS if name not in applied]
+    if not pending:
+        return
+
+    if os.path.exists(DB_PATH):
+        backup_path = f"{DB_PATH}.backup-{datetime.now(_TZ).strftime('%Y%m%d-%H%M%S')}"
+        shutil.copy2(DB_PATH, backup_path)
+        logger.info("Migratsiyadan oldin baza nusxalandi: %s", backup_path)
+
+    for name, fn in pending:
+        await fn()
+        await _conn.execute("INSERT INTO migrations (name, applied_at) VALUES (?, ?)", (name, int(time.time())))
+        await _conn.commit()
+        logger.info("Migratsiya bajarildi: %s", name)
 
 
 async def _refund_legacy_hero_shot_items() -> None:
@@ -203,9 +281,17 @@ async def points_summary(user_id: int) -> dict[str, int]:
     return {"daily": row["daily"], "weekly": row["weekly"], "monthly": row["monthly"], "total": row["total"]}
 
 
-async def top_points(since: int | None = None, limit: int = 10) -> list[aiosqlite.Row]:
-    """Reyting: `since` bo'lsa shu unix-vaqtdan beri, aks holda umumiy ball bo'yicha TOP."""
-    if since is None:
+async def top_points(since: int | None = None, limit: int = 10, until: int | None = None) -> list[aiosqlite.Row]:
+    """Reyting: `since` bo'lsa shu unix-vaqtdan beri (`until` bo'lsa undan oldingacha), aks holda umumiy TOP."""
+    if until is not None:
+        cur = await _conn.execute(
+            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
+            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
+            "WHERE points_log.created_at >= ? AND points_log.created_at < ? "
+            "GROUP BY points_log.user_id ORDER BY total DESC, points_log.user_id LIMIT ?",
+            (since or 0, until, limit),
+        )
+    elif since is None:
         cur = await _conn.execute(
             "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
             "FROM points_log JOIN users ON users.user_id = points_log.user_id "
@@ -360,3 +446,135 @@ async def get_enabled_items(user_id: int) -> dict[str, int]:
     rows = await cur.fetchall()
     await cur.close()
     return {row["item_key"]: row["count"] for row in rows}
+
+
+async def pay_weekly_rewards(week_start: int, awards: list[tuple[int, int]]) -> bool:
+    """Hafta mukofotini bir marta beradi: (user_id, olmos) ro'yxati. Shu hafta uchun allaqachon
+    berilgan bo'lsa False qaytaradi va hech narsa o'zgarmaydi. Belgi va balanslar bitta commit'da yoziladi."""
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO weekly_rewards (week_start, paid_at) VALUES (?, ?)", (week_start, int(time.time()))
+    )
+    if cur.rowcount == 0:
+        return False
+    for user_id, diamonds in awards:
+        await _conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (diamonds, user_id))
+    await _conn.commit()
+    return True
+
+
+async def transfer_balance(sender_id: int, recipient_id: int, currency: str, column: str, amount: int) -> bool:
+    """Yuboruvchidan atomik ayirib, qabul qiluvchiga qo'shadi va jurnalga yozadi."""
+    if not await spend_balance(sender_id, column, amount):
+        return False
+    await _conn.execute(
+        f"UPDATE users SET {column} = {column} + ? WHERE user_id = ?", (amount, recipient_id)
+    )
+    await _conn.execute(
+        "INSERT INTO transfers (sender_id, recipient_id, currency, amount, created_at) VALUES (?, ?, ?, ?, ?)",
+        (sender_id, recipient_id, currency, amount, int(time.time())),
+    )
+    await _conn.commit()
+    return True
+
+
+async def sent_today(sender_id: int, currency: str) -> int:
+    """Bugun (Toshkent vaqti bilan 00:00 dan) yuborilgan jami miqdor."""
+    cur = await _conn.execute(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM transfers WHERE sender_id = ? AND currency = ? AND created_at >= ?",
+        (sender_id, currency, period_starts()["daily"]),
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row["total"]
+
+
+async def save_chat_lock(chat_id: int, permissions_json: str) -> bool:
+    """Asl ruxsatlarni saqlaydi. Allaqachon saqlangan bo'lsa (yopiq guruhning ruxsatlarini
+    asl deb yozib qo'ymaslik uchun) o'zgartirmaydi va False qaytaradi."""
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO chat_locks (chat_id, permissions, created_at) VALUES (?, ?, ?)",
+        (chat_id, permissions_json, int(time.time())),
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def get_chat_lock(chat_id: int) -> str | None:
+    cur = await _conn.execute("SELECT permissions FROM chat_locks WHERE chat_id = ?", (chat_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["permissions"] if row else None
+
+
+async def delete_chat_lock(chat_id: int) -> None:
+    await _conn.execute("DELETE FROM chat_locks WHERE chat_id = ?", (chat_id,))
+    await _conn.commit()
+
+
+async def all_chat_locks() -> list[aiosqlite.Row]:
+    cur = await _conn.execute("SELECT chat_id, permissions FROM chat_locks")
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def get_group_settings(chat_id: int) -> str | None:
+    cur = await _conn.execute("SELECT settings FROM group_settings WHERE chat_id = ?", (chat_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["settings"] if row else None
+
+
+async def set_group_settings(chat_id: int, settings_json: str) -> None:
+    await _conn.execute(
+        "INSERT INTO group_settings (chat_id, settings) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET settings = excluded.settings",
+        (chat_id, settings_json),
+    )
+    await _conn.commit()
+
+
+async def all_group_settings() -> list[aiosqlite.Row]:
+    cur = await _conn.execute("SELECT chat_id, settings FROM group_settings")
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def record_role_result(user_id: int, role: str, won: bool) -> None:
+    await _conn.execute(
+        "INSERT INTO role_stats (user_id, role, games, wins) VALUES (?, ?, 1, ?) "
+        "ON CONFLICT(user_id, role) DO UPDATE SET games = games + 1, wins = wins + excluded.wins",
+        (user_id, role, 1 if won else 0),
+    )
+    await _conn.commit()
+
+
+async def get_role_stats(user_id: int) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT role, games, wins FROM role_stats WHERE user_id = ? ORDER BY games DESC", (user_id,)
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def points_rank(user_id: int, since: int | None = None) -> tuple[int, int] | None:
+    """Foydalanuvchining reytingdagi o'rni va bali; shu davrda bali bo'lmasa None."""
+    since = since or 0
+    cur = await _conn.execute(
+        "SELECT SUM(points) AS total FROM points_log WHERE user_id = ? AND created_at >= ?", (user_id, since)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    if not row or row["total"] is None:
+        return None
+    total = row["total"]
+    cur = await _conn.execute(
+        "SELECT COUNT(*) AS higher FROM (SELECT user_id, SUM(points) AS t FROM points_log "
+        "WHERE created_at >= ? GROUP BY user_id) WHERE t > ?",
+        (since, total),
+    )
+    higher = (await cur.fetchone())["higher"]
+    await cur.close()
+    return higher + 1, total

@@ -4,7 +4,10 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
+import texts
 from config import ADMIN_IDS
+from game.models import Role
+from texts import ROLE_NAMES
 from economy import ITEMS
 from utils import esc
 
@@ -44,6 +47,16 @@ async def build_profile_view(
 
     lines.append("")
     lines.append(f"🎮 O'yinlar: {user_row['games']} | 🏆 G'alabalar: {user_row['wins']}")
+    role_stats = await db.get_role_stats(user_id)
+    if role_stats:
+        lines.append("")
+        lines.append(texts.PROFILE_ROLE_STATS_HEADER)
+        for row in role_stats:
+            role = Role(row["role"]) if row["role"] in Role._value2member_map_ else None
+            if role is None:
+                continue
+            pct = round(100 * row["wins"] / row["games"]) if row["games"] else 0
+            lines.append(texts.PROFILE_ROLE_STATS_LINE.format(role=ROLE_NAMES[role], games=row["games"], pct=pct))
     if inventory_rows:
         lines.append("")
         lines.append("⚙️ Buyumlarni yoqish/o'chirish uchun pastdagi tugmalarni bosing:")

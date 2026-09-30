@@ -6,7 +6,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
-from economy import CURRENCY_COLUMN, CURRENCY_EMOJI
+import texts
+from config import ADMIN_IDS
+from economy import CURRENCY_COLUMN, CURRENCY_EMOJI, TRANSFER_DAILY_LIMITS, TRANSFER_MIN_GAMES
 from utils import esc
 
 router = Router(name="transfer")
@@ -20,9 +22,30 @@ class Transfer(StatesGroup):
     confirm = State()
 
 
-async def _start_transfer(message: Message, state: FSMContext, currency: str) -> None:
-    await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
+async def _limit_error(user_id: int, currency: str, amount: int = 0) -> str | None:
+    """Cheklovga tushsa xato matnini qaytaradi. ADMIN_IDS ga cheklov qo'yilmaydi."""
+    if user_id in ADMIN_IDS:
+        return None
+    row = await db.get_user(user_id)
+    played = row["games"] if row else 0
+    if played < TRANSFER_MIN_GAMES:
+        return texts.TRANSFER_MIN_GAMES_REQUIRED.format(required=TRANSFER_MIN_GAMES, played=played)
+    limit = TRANSFER_DAILY_LIMITS[currency]
+    sent = await db.sent_today(user_id, currency)
+    if sent + amount > limit:
+        return texts.TRANSFER_DAILY_LIMIT_EXCEEDED.format(
+            limit=limit, sent=sent, left=max(0, limit - sent), emoji=CURRENCY_EMOJI[currency]
+        )
+    return None
+
+
+async def _start_transfer(message: Message, state: FSMContext, currency: str, user) -> None:
+    await db.ensure_user(user.id, user.full_name, user.username)
     await state.clear()
+    error = await _limit_error(user.id, currency)
+    if error:
+        await message.answer(error)
+        return
     await state.update_data(currency=currency)
     await state.set_state(Transfer.recipient)
     await message.answer(
@@ -40,24 +63,24 @@ async def cmd_send_in_group(message: Message) -> None:
 
 @router.message(Command("send"), F.chat.type == "private")
 async def cmd_send_dollar(message: Message, state: FSMContext) -> None:
-    await _start_transfer(message, state, "dollar")
+    await _start_transfer(message, state, "dollar", message.from_user)
 
 
 @router.message(Command("sendgem"), F.chat.type == "private")
 async def cmd_send_diamond(message: Message, state: FSMContext) -> None:
-    await _start_transfer(message, state, "diamond")
+    await _start_transfer(message, state, "diamond", message.from_user)
 
 
 @router.callback_query(F.data == "menu:send_dollar")
 async def on_menu_send_dollar(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
-    await _start_transfer(callback.message, state, "dollar")
+    await _start_transfer(callback.message, state, "dollar", callback.from_user)
 
 
 @router.callback_query(F.data == "menu:send_diamond")
 async def on_menu_send_diamond(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
-    await _start_transfer(callback.message, state, "diamond")
+    await _start_transfer(callback.message, state, "diamond", callback.from_user)
 
 
 @router.message(Transfer.recipient, F.chat.type == "private")
@@ -96,6 +119,10 @@ async def on_amount(message: Message, state: FSMContext) -> None:
     sender_row = await db.get_user(message.from_user.id)
     if not sender_row or sender_row[col] < amount:
         await message.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[currency]} yo'q.")
+        return
+    error = await _limit_error(message.from_user.id, currency, amount)
+    if error:
+        await message.answer(error)
         return
 
     await state.update_data(amount=amount)
@@ -136,10 +163,13 @@ async def on_transfer_confirm(callback: CallbackQuery, state: FSMContext, bot: B
     recipient_name = data["recipient_name"]
     col = CURRENCY_COLUMN[currency]
 
-    if not await db.spend_balance(callback.from_user.id, col, amount):
+    error = await _limit_error(callback.from_user.id, currency, amount)
+    if error:
+        await callback.answer(error, show_alert=True)
+        return
+    if not await db.transfer_balance(callback.from_user.id, recipient_id, currency, col, amount):
         await callback.answer("Balansingiz yetarli emas.", show_alert=True)
         return
-    await db.add_balance(recipient_id, **{col: amount})
 
     await callback.answer("Yuborildi ✅")
     try:

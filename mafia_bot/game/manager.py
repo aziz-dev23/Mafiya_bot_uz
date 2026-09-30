@@ -23,6 +23,10 @@ class GameManager:
     def register_player(self, game: Game, user_id: int) -> None:
         self.player_chat[user_id] = game.chat_id
 
+    def unregister_player(self, game: Game, user_id: int) -> None:
+        if self.player_chat.get(user_id) == game.chat_id:
+            self.player_chat.pop(user_id, None)
+
     def remove_game(self, chat_id: int) -> Game | None:
         game = self.games.pop(chat_id, None)
         if game:

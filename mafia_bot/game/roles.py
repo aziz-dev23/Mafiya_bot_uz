@@ -1,6 +1,6 @@
 import random
 
-from .models import Game, Role
+from .models import MAFIA_TEAM_ROLES, Game, Role
 
 # Maxsus rollar ustuvorlik tartibida: (rol, shu rol paydo bo'ladigan minimal o'yinchi soni).
 SPECIAL_ROLES = (
@@ -14,12 +14,21 @@ SPECIAL_ROLES = (
     (Role.LAWYER, 9),
     (Role.SORCERER, 10),
     (Role.WOLF, 11),
+    # 40 kishilik o'yinlar uchun (40 kishida oddiy tinch aholi ~30% qoladi).
+    (Role.SERGEANT, 20),
+    (Role.DOCTOR, 22),  # ikkinchi Doktor
+    (Role.JOURNALIST, 25),
+    (Role.BODYGUARD, 27),
+    (Role.SPY, 28),
+    (Role.JUDGE, 30),
+    (Role.CUPID, 32),
 )
 # O'yinchilarning kamida shuncha qismi oddiy aholi bo'lib qoladi.
 MIN_CIVILIAN_SHARE = 0.2
 
 
-def build_role_list(player_count: int) -> list[Role]:
+def build_role_list(player_count: int, disabled: frozenset[Role] | set[Role] = frozenset()) -> list[Role]:
+    """disabled — guruh sozlamalarida o'chirilgan maxsus rollar (ularning o'rni keyingi rollarga o'tadi)."""
     mafia_count = max(1, round(player_count * 0.25))
     while mafia_count * 2 >= player_count and mafia_count > 1:
         mafia_count -= 1
@@ -32,7 +41,7 @@ def build_role_list(player_count: int) -> list[Role]:
     for role, min_players in SPECIAL_ROLES:
         if special_slots <= 0:
             break
-        if player_count >= min_players:
+        if player_count >= min_players and role not in disabled:
             roles.append(role)
             special_slots -= 1
 
@@ -41,14 +50,15 @@ def build_role_list(player_count: int) -> list[Role]:
 
 
 def assign_roles(game: Game) -> None:
-    roles = build_role_list(len(game.players))
+    roles = build_role_list(len(game.players), game.settings.disabled_role_set())
     random.shuffle(roles)
     for player, role in zip(game.players.values(), roles):
         player.role = role
+        player.initial_role = role
 
-    # Yollanma qotilga maxfiy buyurtma nishoni tayinlanadi.
+    # Yollanma qotilga maxfiy buyurtma nishoni tayinlanadi (Mafiya jamoasidan emas).
     hitmen = [p for p in game.players.values() if p.role == Role.HITMAN]
     for hitman in hitmen:
-        candidates = [p for p in game.players.values() if p.user_id != hitman.user_id]
+        candidates = [p for p in game.players.values() if p.role not in MAFIA_TEAM_ROLES]
         if candidates:
             hitman.contract_target = random.choice(candidates).user_id

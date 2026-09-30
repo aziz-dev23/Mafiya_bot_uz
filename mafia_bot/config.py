@@ -14,6 +14,32 @@ DAY_DISCUSSION_DURATION = int(os.getenv("DAY_DISCUSSION_DURATION", "30"))
 VOTE_DURATION = int(os.getenv("VOTE_DURATION", "30"))
 CONFIRM_VOTE_DURATION = int(os.getenv("CONFIRM_VOTE_DURATION", "30"))
 LOBBY_AUTOSTART_DELAY = int(os.getenv("LOBBY_AUTOSTART_DELAY", "15"))
+# Dinamik vaqt: muhokama = DAY_DISCUSSION_DURATION + PER_PLAYER × tiriklar (ko'pi bilan MAX), ovoz ham shunday.
+DAY_DISCUSSION_PER_PLAYER = int(os.getenv("DAY_DISCUSSION_PER_PLAYER", "2"))
+DAY_DISCUSSION_MAX = int(os.getenv("DAY_DISCUSSION_MAX", "150"))
+VOTE_PER_PLAYER = int(os.getenv("VOTE_PER_PLAYER", "1"))
+VOTE_MAX = int(os.getenv("VOTE_MAX", "90"))
+# O'lgan o'yinchi so'nggi so'zini yozishi uchun vaqt (soniya) va uzunlik chegarasi.
+LAST_WORD_DURATION = int(os.getenv("LAST_WORD_DURATION", "30"))
+LAST_WORD_MAX_LENGTH = int(os.getenv("LAST_WORD_MAX_LENGTH", "200"))
+# Tun va ovoz berish tugashiga shuncha soniya qolganda hali tanlamaganlarga eslatma yuboriladi.
+REMINDER_BEFORE_END = int(os.getenv("REMINDER_BEFORE_END", "10"))
+# Ketma-ket shuncha marta ovoz bermagan / tunda harakat qilmagan o'yinchi o'yindan chiqariladi.
+AFK_LIMIT = int(os.getenv("AFK_LIMIT", "2"))
+# Shuncha o'yindan kam o'ynaganlarga qo'shimcha maslahatlar ko'rsatiladi.
+NEWBIE_GAMES = int(os.getenv("NEWBIE_GAMES", "5"))
+# Sudya haydashni bekor qilish uchun beriladigan vaqt (soniya).
+JUDGE_DURATION = int(os.getenv("JUDGE_DURATION", "10"))
+# Ro'yxat xabari ko'pi bilan shuncha soniyada bir marta tahrirlanadi.
+LOBBY_EDIT_INTERVAL = float(os.getenv("LOBBY_EDIT_INTERVAL", "3"))
+# Guruhga ketma-ket chiqadigan qisqa e'lonlar shu soniya ichida yig'ilib, bitta xabar bo'lib chiqadi.
+ANNOUNCE_BATCH_DELAY = float(os.getenv("ANNOUNCE_BATCH_DELAY", "3"))
+
+# Telegram limitlari (navbat): bitta chatga soniyasiga 1 ta, guruhga daqiqasiga 20 ta, jami soniyasiga 25 ta.
+RATE_PER_CHAT_INTERVAL = float(os.getenv("RATE_PER_CHAT_INTERVAL", "1"))
+RATE_GROUP_PER_MINUTE = int(os.getenv("RATE_GROUP_PER_MINUTE", "20"))
+RATE_GLOBAL_PER_SECOND = int(os.getenv("RATE_GLOBAL_PER_SECOND", "25"))
+RATE_RETRY_ATTEMPTS = int(os.getenv("RATE_RETRY_ATTEMPTS", "5"))
 
 DB_PATH = os.getenv("DB_PATH", "mafia.db")
 # Reyting davrlari (kun/hafta/oy) shu vaqt mintaqasi bo'yicha hisoblanadi (Toshkent = UTC+5)

@@ -2,10 +2,11 @@ from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery
 
-from game.engine import confirm_counts
+import texts
+from game.engine import announce, confirm_counts
 from game.manager import manager
 from game.models import GameState
-from utils import build_confirm_keyboard, esc
+from utils import build_confirm_keyboard, build_vote_keyboard, esc
 
 router = Router(name="day")
 
@@ -28,18 +29,32 @@ async def on_vote(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer("Bu o'yinchi mavjud emas.", show_alert=True)
         return
 
+    changed = voter.user_id in game.day_votes
+    if changed and game.day_votes[voter.user_id] == target_id:
+        await callback.answer("Ovozingiz allaqachon qabul qilingan.")
+        return
+
     game.day_votes[voter.user_id] = target_id
     target_name = "Ovoz bermaslik" if target_id is None else esc(game.players[target_id].full_name)
     await callback.answer("Ovozingiz qabul qilindi ✅")
     try:
-        await callback.message.edit_text(f"🗳 Siz tanladingiz: {target_name}")
+        # Tugmalar qoladi — vaqt tugaguncha tanlovni o'zgartirish mumkin.
+        await callback.message.edit_text(
+            texts.VOTE_CHOSEN.format(name=target_name), reply_markup=build_vote_keyboard(game)
+        )
     except TelegramBadRequest:
         pass
 
-    if target_id is None:
-        await bot.send_message(game.chat_id, f"🔵 {esc(voter.full_name)} — ovoz bermaslikni tanladi.")
+    name = esc(voter.full_name)
+    if not game.settings.open_votes:
+        if not changed:
+            announce(bot, game, texts.VOTE_ANNOUNCE_ANON)
+    elif target_id is None:
+        announce(bot, game, texts.VOTE_ANNOUNCE_SKIP.format(voter=name))
+    elif changed:
+        announce(bot, game, texts.VOTE_ANNOUNCE_CHANGED.format(voter=name, target=target_name))
     else:
-        await bot.send_message(game.chat_id, f"🔵 {esc(voter.full_name)} — {target_name}ga ovoz berdi.")
+        announce(bot, game, texts.VOTE_ANNOUNCE.format(voter=name, target=target_name))
 
     if len(game.day_votes) >= game.vote_needed and game.vote_event:
         game.vote_event.set()
@@ -48,7 +63,7 @@ async def on_vote(callback: CallbackQuery, bot: Bot) -> None:
 @router.callback_query(F.data.startswith("confirm:"))
 async def on_confirm(callback: CallbackQuery) -> None:
     game = manager.get_game(callback.message.chat.id)
-    if not game or game.state != GameState.DAY_CONFIRM:
+    if not game or game.state != GameState.DAY_CONFIRM or game.confirm_candidate is None:
         await callback.answer("Hozir ovoz berish vaqti emas.", show_alert=True)
         return
 

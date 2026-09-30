@@ -4,6 +4,7 @@ from aiogram.types import Message
 
 from game.manager import manager
 from game.models import GameState
+from game.settings import LOCK_ALL
 
 router = Router(name="chat_guard")
 
@@ -18,11 +19,13 @@ async def guard_group_chat(message: Message) -> None:
     if not game:
         return
 
+    player = game.players.get(message.from_user.id) if message.from_user else None
     if game.state in NIGHT_STATES:
-        should_delete = True
+        # "Hamma uchun" rejimida guruh yopiq — bu yerga faqat adminlar (ularni cheklab bo'lmaydi) yoki
+        # bot cheklay olmagan holatdagi xabarlar keladi. "Faqat o'yinchilar" rejimida o'yinchilarniki o'chadi.
+        should_delete = game.settings.lock_mode == LOCK_ALL or player is not None
     elif game.state in DAY_STATES:
         # Halok bo'lgan o'yinchilar kunduzi ham yoza olmaydi.
-        player = game.players.get(message.from_user.id) if message.from_user else None
         should_delete = player is not None and not player.alive
     else:
         should_delete = False

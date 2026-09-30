@@ -5,7 +5,14 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 from config import ADMIN_IDS, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
-from economy import DIAMOND_PACKAGES, DIAMOND_TO_DOLLAR_RATE
+import texts
+from economy import (
+    COIN_EXCHANGE_AMOUNTS,
+    COIN_TO_DOLLAR_RATE,
+    CURRENCY_EMOJI,
+    DIAMOND_PACKAGES,
+    DIAMOND_TO_DOLLAR_RATE,
+)
 from utils import esc
 
 router = Router(name="shop")
@@ -44,6 +51,10 @@ async def cmd_shop(message: Message) -> None:
 EXCHANGE_AMOUNTS = {amount for amount, _ in DIAMOND_PACKAGES}
 
 
+def exchange_text() -> str:
+    return texts.EXCHANGE_TEXT.format(diamond_rate=DIAMOND_TO_DOLLAR_RATE, coin_rate=COIN_TO_DOLLAR_RATE)
+
+
 def build_exchange_keyboard() -> InlineKeyboardMarkup:
     rows = []
     for i in range(0, len(DIAMOND_PACKAGES), 2):
@@ -55,41 +66,58 @@ def build_exchange_keyboard() -> InlineKeyboardMarkup:
             for amount, _ in DIAMOND_PACKAGES[i : i + 2]
         ]
         rows.append(row)
+    for i in range(0, len(COIN_EXCHANGE_AMOUNTS), 2):
+        row = [
+            InlineKeyboardButton(
+                text=f"{amount}🪙 → {amount * COIN_TO_DOLLAR_RATE}💵",
+                callback_data=f"exchange_coin:{amount}",
+            )
+            for amount in COIN_EXCHANGE_AMOUNTS[i : i + 2]
+        ]
+        rows.append(row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @router.message(Command("almashtir", "exchange"))
 async def cmd_exchange(message: Message) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    await message.answer(
-        "💱 <b>OLMOSNI PULGA ALMASHTIRISH</b>\n"
-        f"Kurs: 1💎 = {DIAMOND_TO_DOLLAR_RATE}💵\n\nKerakli miqdorni tanlang:",
-        reply_markup=build_exchange_keyboard(),
-    )
+    await message.answer(exchange_text(), reply_markup=build_exchange_keyboard())
+
+
+async def _do_exchange(callback: CallbackQuery, column: str, rate: int, allowed: set[int], not_enough: str) -> None:
+    raw = callback.data.split(":")[1]
+    # Faqat tugmalardagi miqdorlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
+    if not raw.isdigit() or int(raw) not in allowed:
+        await callback.answer(texts.EXCHANGE_BAD_AMOUNT, show_alert=True)
+        return
+    amount = int(raw)
+    await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
+    if not await db.spend_balance(callback.from_user.id, column, amount):
+        await callback.answer(not_enough, show_alert=True)
+        return
+
+    dollars = amount * rate
+    emoji = CURRENCY_EMOJI["diamond" if column == "diamonds" else "coin"]
+    await db.add_balance(callback.from_user.id, dollars=dollars)
+    await callback.answer(texts.EXCHANGE_DONE_SHORT.format(amount=amount, emoji=emoji, dollars=dollars), show_alert=True)
+    try:
+        await callback.message.edit_text(texts.EXCHANGE_DONE.format(amount=amount, emoji=emoji, dollars=dollars))
+    except TelegramBadRequest:
+        pass
 
 
 @router.callback_query(F.data.startswith("exchange:"))
 async def on_exchange(callback: CallbackQuery) -> None:
-    raw = callback.data.split(":")[1]
-    # Faqat tugmalardagi paketlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
-    if not raw.isdigit() or int(raw) not in EXCHANGE_AMOUNTS:
-        await callback.answer("Noto'g'ri miqdor.", show_alert=True)
-        return
-    amount = int(raw)
-    await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    if not await db.spend_balance(callback.from_user.id, "diamonds", amount):
-        await callback.answer("Olmosingiz yetarli emas.", show_alert=True)
-        return
+    await _do_exchange(
+        callback, "diamonds", DIAMOND_TO_DOLLAR_RATE, EXCHANGE_AMOUNTS, texts.EXCHANGE_NOT_ENOUGH_DIAMONDS
+    )
 
-    dollars = amount * DIAMOND_TO_DOLLAR_RATE
-    await db.add_balance(callback.from_user.id, dollars=dollars)
-    await callback.answer(f"✅ {amount}💎 → {dollars}💵 almashtirildi.", show_alert=True)
-    try:
-        await callback.message.edit_text(
-            f"💱 <b>OLMOSNI PULGA ALMASHTIRISH</b>\n\n✅ {amount}💎 → {dollars}💵 hisobingizga qo'shildi."
-        )
-    except TelegramBadRequest:
-        pass
+
+@router.callback_query(F.data.startswith("exchange_coin:"))
+async def on_exchange_coin(callback: CallbackQuery) -> None:
+    await _do_exchange(
+        callback, "coins", COIN_TO_DOLLAR_RATE, set(COIN_EXCHANGE_AMOUNTS), texts.EXCHANGE_NOT_ENOUGH_COINS
+    )
 
 
 @router.callback_query(F.data.startswith("shop:buy:"))
