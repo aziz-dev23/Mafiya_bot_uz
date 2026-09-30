@@ -11,6 +11,7 @@ from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarku
 
 import cosmetics
 import db
+import group_features
 from config import AFK_LIMIT, ANNOUNCE_BATCH_DELAY, LAST_WORD_MAX_LENGTH, REMINDER_BEFORE_END
 from economy import (
     GUESS_REWARD_COINS,
@@ -226,7 +227,7 @@ async def _report(bot: Bot, game: Game, line: str) -> None:
 
 def _titled(game: Game, player: Player) -> str:
     """Guruh xabaridagi ism: faol unvon + havola."""
-    return cosmetics.display_name(mention(player), gt(game), player.title_key)
+    return cosmetics.display_name(mention(player), gt(game), player.title_key, vip=player.vip)
 
 
 def _styled_death(game: Game, player: Player) -> str | None:
@@ -1157,7 +1158,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     lines.append(G.WINNERS_HEADER)
     for p in winners:
         status = "" if p.alive else G.DEAD_MARK
-        lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
+        lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge, p.vip)} — {G.ROLE_NAMES[p.role]}{status}")
         idx += 1
 
     if losers:
@@ -1165,7 +1166,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
         lines.append(G.OTHERS_HEADER)
         for p in losers:
             status = "" if p.alive else G.DEAD_MARK
-            lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
+            lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge, p.vip)} — {G.ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0
@@ -1173,6 +1174,11 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     lines.append(G.GAME_DURATION.format(minutes=elapsed_min))
     lines.append("")
     lines.append(G.RANKING_HINT)
+    try:
+        # 🏰 Premium guruh: guruh unvonlari va turnir jadvali (alohida xabar emas — shu xabarga qo'shiladi).
+        lines += await group_features.on_game_finished(bot, game, winner)
+    except Exception:
+        logger.exception("Guruh premiumi (o'yin yakuni) xatoligi")
 
     await _send_group(bot, game, "\n".join(lines))
     if game.history:

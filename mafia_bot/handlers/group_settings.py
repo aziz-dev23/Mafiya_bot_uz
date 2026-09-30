@@ -1,10 +1,17 @@
 """/sozlamalar — guruh adminlari uchun inline tugmali sozlamalar menyusi."""
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+import cosmetics
+import db
 import texts
+from economy import GROUP_TITLE_NAME_MAX, OWNER_SHARE_PERCENT
+from utils import esc
 from i18n import LANG_NAMES
 from game.models import Role
 from game.roles import SPECIAL_ROLES
@@ -44,7 +51,7 @@ def _flag(value: bool, L=texts) -> str:
     return L.SETTINGS_ON if value else L.SETTINGS_OFF
 
 
-def main_view(s: GroupSettings, L=texts) -> tuple[str, InlineKeyboardMarkup]:
+def main_view(s: GroupSettings, L=texts, share_name: str | None = None) -> tuple[str, InlineKeyboardMarkup]:
     rows = [
         [_btn(L.SETTINGS_BTN_TIMES, "times"), _btn(L.SETTINGS_BTN_PLAYERS, "players")],
         [_btn(L.SETTINGS_BTN_ROLES, "roles")],
@@ -57,6 +64,13 @@ def main_view(s: GroupSettings, L=texts) -> tuple[str, InlineKeyboardMarkup]:
         [_btn(L.SETTINGS_BTN_MODE.format(state=L.SETTINGS_MODE_NAMES[s.mode]), "mode")],
         [_btn(L.SETTINGS_BTN_AUTO.format(state=s.auto_time or L.SETTINGS_AUTO_OFF), "auto")],
         [InlineKeyboardButton(text=f"🌐 {LANG_NAMES.get(s.lang, s.lang)}", callback_data="lang:groupmenu")],
+        [InlineKeyboardButton(
+            text=L.SETTINGS_BTN_GROUP_NAME.format(name=s.title_name or L.SETTINGS_GROUP_NAME_DEFAULT),
+            callback_data="gsx:name",
+        )],
+        [InlineKeyboardButton(
+            text=L.SETTINGS_BTN_SHARE.format(name=share_name or L.SETTINGS_SHARE_CREATOR), callback_data="gsx:share"
+        )],
         [_btn(L.SETTINGS_CLOSE, "close")],
     ]
     return L.SETTINGS_TITLE, InlineKeyboardMarkup(inline_keyboard=rows)
@@ -168,6 +182,19 @@ async def _is_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
     return member.status in ("administrator", "creator")
 
 
+async def _share_name(chat_id: int) -> str | None:
+    owner_id = await db.get_group_owner_override(chat_id)
+    if not owner_id:
+        return None
+    # Foydalanuvchi yozuvi yaratilmaydi: ulush faqat u botga /start bosgach to'lanadi.
+    user = await db.get_user(owner_id)
+    return user["full_name"] if user else f"ID {owner_id}"
+
+
+async def full_main_view(chat_id: int, s: GroupSettings, L=texts) -> tuple[str, InlineKeyboardMarkup]:
+    return main_view(s, L, await _share_name(chat_id))
+
+
 @router.message(Command("sozlamalar", "settings"))
 async def cmd_settings(message: Message, bot: Bot, L=texts, UL=texts) -> None:
     if message.chat.type not in ("group", "supergroup"):
@@ -176,7 +203,7 @@ async def cmd_settings(message: Message, bot: Bot, L=texts, UL=texts) -> None:
     if not await _is_admin(bot, message.chat.id, message.from_user.id):
         await message.answer(UL.SETTINGS_ADMIN_ONLY)
         return
-    text, kb = main_view(await load_settings(message.chat.id), L)
+    text, kb = await full_main_view(message.chat.id, await load_settings(message.chat.id), L)
     await message.answer(text, reply_markup=kb)
 
 
@@ -201,8 +228,109 @@ async def on_settings(callback: CallbackQuery, bot: Bot, L=texts, UL=texts) -> N
     settings = await load_settings(chat_id)
     view = apply_action(settings, action)
     await save_settings(chat_id, settings)
-    text, kb = VIEWS[view](settings, L)
+    if view == "main":
+        text, kb = await full_main_view(chat_id, settings, L)
+    else:
+        text, kb = VIEWS[view](settings, L)
     await callback.answer()
+    try:
+        await callback.message.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest:
+        pass
+
+
+# ---------- 🏰 Guruh unvoni nomi va 🤝 ulush oluvchi ----------
+
+
+class GroupName(StatesGroup):
+    waiting = State()
+
+
+def clean_group_name(raw: str) -> str | None:
+    name = " ".join(raw.split())
+    return name if 0 < len(name) <= GROUP_TITLE_NAME_MAX else None
+
+
+@router.callback_query(F.data == "gsx:name")
+async def on_group_name(callback: CallbackQuery, bot: Bot, state: FSMContext, L=texts, UL=texts) -> None:
+    if not await _is_admin(bot, callback.message.chat.id, callback.from_user.id):
+        await callback.answer(UL.SETTINGS_ADMIN_ONLY, show_alert=True)
+        return
+    await callback.answer()
+    await state.set_state(GroupName.waiting)
+    await callback.message.answer(
+        L.SETTINGS_ASK_GROUP_NAME.format(max=GROUP_TITLE_NAME_MAX), reply_markup=ForceReply(selective=True)
+    )
+
+
+# Faqat botga javob (reply) qilingan xabar — o'yin paytidagi oddiy xabarlar ushlanib qolmasligi uchun.
+@router.message(GroupName.waiting, F.text, F.reply_to_message.from_user.is_bot)
+async def on_group_name_text(message: Message, bot: Bot, state: FSMContext, L=texts) -> None:
+    if not await _is_admin(bot, message.chat.id, message.from_user.id):
+        await state.clear()
+        return
+    name = clean_group_name(message.text)
+    if name is None:
+        await message.answer(L.SETTINGS_ASK_GROUP_NAME.format(max=GROUP_TITLE_NAME_MAX),
+                             reply_markup=ForceReply(selective=True))
+        return
+    await state.clear()
+    settings = await load_settings(message.chat.id)
+    settings.title_name = name
+    await save_settings(message.chat.id, settings)
+    await cosmetics.load_title(cosmetics.group_title_key(message.chat.id))
+    await message.answer(L.SETTINGS_GROUP_NAME_SAVED.format(name=esc(name)))
+
+
+async def _creator_and_admins(bot: Bot, chat_id: int):
+    try:
+        admins = await bot.get_chat_administrators(chat_id)
+    except TelegramAPIError:
+        return None, []
+    creator = next((a.user for a in admins if a.status == "creator"), None)
+    return creator, [a.user for a in admins if not a.user.is_bot]
+
+
+@router.callback_query(F.data == "gsx:share")
+async def on_share(callback: CallbackQuery, bot: Bot, L=texts, UL=texts) -> None:
+    chat_id = callback.message.chat.id
+    creator, admins = await _creator_and_admins(bot, chat_id)
+    if creator is None or creator.id != callback.from_user.id:
+        await callback.answer(UL.SETTINGS_SHARE_CREATOR_ONLY, show_alert=True)
+        return
+    await callback.answer()
+    current = await db.get_group_owner_override(chat_id) or creator.id
+    rows = [
+        [InlineKeyboardButton(
+            text=("✅ " if a.id == current else "") + a.full_name, callback_data=f"gsx:owner:{a.id}"
+        )]
+        for a in admins
+    ]
+    rows.append([_btn(L.SETTINGS_BACK, "main")])
+    try:
+        await callback.message.edit_text(
+            L.SETTINGS_SHARE_TITLE.format(percent=OWNER_SHARE_PERCENT), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
+        )
+    except TelegramBadRequest:
+        pass
+
+
+@router.callback_query(F.data.startswith("gsx:owner:"))
+async def on_share_set(callback: CallbackQuery, bot: Bot, L=texts, UL=texts) -> None:
+    chat_id = callback.message.chat.id
+    raw = callback.data.split(":")[2]
+    creator, admins = await _creator_and_admins(bot, chat_id)
+    if creator is None or creator.id != callback.from_user.id:
+        await callback.answer(UL.SETTINGS_SHARE_CREATOR_ONLY, show_alert=True)
+        return
+    target = next((a for a in admins if raw.isdigit() and a.id == int(raw)), None)
+    if target is None:
+        await callback.answer()
+        return
+    # Yaratuvchining o'zi tanlansa — alohida yozuv kerak emas (standart holat).
+    await db.set_group_owner_override(chat_id, None if target.id == creator.id else target.id)
+    await callback.answer(UL.SETTINGS_SHARE_SET.format(name=target.full_name), show_alert=True)
+    text, kb = await full_main_view(chat_id, await load_settings(chat_id), L)
     try:
         await callback.message.edit_text(text, reply_markup=kb)
     except TelegramBadRequest:

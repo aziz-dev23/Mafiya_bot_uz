@@ -4,6 +4,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
+import purchases
 import texts
 from game.models import MAFIA_TEAM_ROLES, Role
 from game.settings import load_settings, save_settings
@@ -12,6 +13,7 @@ from i18n import LANG_NAMES, LANGS, RU, UZ, get_texts, set_user_lang
 router = Router(name="common")
 
 JOIN_PREFIX = "join_"
+REF_PREFIX = "ref_"
 
 
 def _lang_from_telegram(language_code: str | None) -> str:
@@ -30,6 +32,13 @@ async def cmd_start_private(message: Message, bot: Bot, command: CommandObject, 
         L = get_texts(lang)
 
     args = command.args or ""
+    if is_new and args.startswith(REF_PREFIX) and args[len(REF_PREFIX):].isdigit():
+        # 🔗 Faqat yangi foydalanuvchi; o'zini o'zi taklif qila olmaydi, taklif qilgan botda bo'lishi kerak.
+        referrer_id = int(args[len(REF_PREFIX):])
+        if referrer_id != user.id and await db.get_user(referrer_id) is not None:
+            await db.add_referral(user.id, referrer_id)
+    # 🤝 /start bosmagan guruh egasiga yig'ilgan ulush endi to'lanadi.
+    await purchases.settle_and_notify(bot, user.id)
     if args.startswith(JOIN_PREFIX) and args[len(JOIN_PREFIX):].lstrip("-").isdigit():
         from handlers.lobby import join_from_deeplink
 

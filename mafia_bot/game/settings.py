@@ -62,6 +62,8 @@ class GroupSettings:
     open_votes: bool = True
     lock_mode: str = LOCK_ALL
     mode: str = MODE_CLASSIC
+    # "🏰 <nom>" guruh unvoni uchun admin kiritgan qisqa nom (bo'sh bo'lsa guruh nomining boshi).
+    title_name: str | None = None
     # Guruhga chiqadigan xabarlar tili (i18n.LANGS); shaxsiy xabarlar har kimning o'z tilida.
     lang: str = "uz"
     # "HH:MM" (Toshkent vaqti) — har kuni shu vaqtda ro'yxat avtomatik ochiladi; None — o'chiq.

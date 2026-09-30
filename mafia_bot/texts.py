@@ -137,6 +137,9 @@ HELP_TEXT = (
     "/sumka — buyumlaringiz, o'yin oldidan yoqish/o'chirish\n"
     "/buyumlar — barcha buyumlar nima qilishi\n"
     "/mavsum — mavsum chiptasi: daraja, XP va mukofotlar\n"
+    "/bonus — kunlik bonus, /vip — VIP obuna\n"
+    "/taklif — do'st taklif qilish havolasi\n"
+    "/premium — guruh premiumi, /turnir — turnir (guruhda)\n"
     "/send — boshqa foydalanuvchiga Dollar yuborish\n"
     "/sendgem — boshqa foydalanuvchiga Olmos yuborish\n"
     "/geroy — Geroyni sotib olish / darajasini oshirish\n"
@@ -858,6 +861,11 @@ BOT_COMMANDS = {
     "sumka": "Mening buyumlarim (yoqish/o'chirish)",
     "buyumlar": "Barcha buyumlar tavsifi",
     "mavsum": "Mavsum chiptasi: daraja va mukofotlar",
+    "bonus": "Kunlik bonus",
+    "vip": "VIP obuna",
+    "taklif": "Do'stlarni taklif qilish",
+    "premium": "Guruh premiumi (guruhda)",
+    "turnir": "Turnir (premium guruhda, adminlar)",
     "send": "Boshqa foydalanuvchiga Dollar yuborish",
     "sendgem": "Boshqa foydalanuvchiga Olmos yuborish",
     "profile": "Profilingiz (balans, statistika)",
@@ -1081,3 +1089,145 @@ REWARD_DOLLAR = "{amount}💵"
 REWARD_COIN = "{amount}🪙"
 REWARD_DIAMOND = "{amount}💎"
 REWARD_ITEM = "{count} ta {emoji} {name}"
+
+# ---------- 7-bosqich: 🎁 Kunlik bonus ----------
+BONUS_CLAIMED = (
+    "🎁 <b>Kunlik bonus — {day}-kun:</b> +{dollars}💵{extra}{vip}\n"
+    "Ertaga {next_day}-kun: {next_dollars}. Kun o'tkazib yuborilsa, hisob 1-kundan boshlanadi."
+)
+BONUS_EXTRA_DIAMONDS = " va +{diamonds}💎"
+BONUS_VIP_NOTE = " (👑 VIP: 💵 ×2)"
+BONUS_ALREADY = "🎁 Bugungi bonusni oldingiz ({day}-kun). Ertaga yana keling!"
+MENU_BONUS = "🎁 Kunlik bonus"
+
+# ---------- 7-bosqich: 👑 VIP ----------
+VIP_PERKS = (
+    "• ismingiz yonida 👑 (ro'yxat, o'lim e'loni, o'yin yakuni, /top)\n"
+    "• kunlik bonusda 💵 ×2 (/bonus)\n"
+    "• har dushanba 1 ta bepul 🛡 Himoya\n"
+    "• /profile da oxirgi 20 o'yin tarixi"
+)
+VIP_TEXT_ACTIVE = (
+    "👑 <b>VIP faol</b> — {date} gacha.\n\n{perks}\n\n"
+    "Telegram obunani har 30 kunda o'zi yangilaydi. Bekor qilish: Telegram sozlamalari → Yulduzlar (Stars) → obunalar."
+)
+VIP_TEXT_INACTIVE = "👑 <b>VIP obuna</b> — {price}⭐ / 30 kun (Telegram o'zi yangilaydi).\n\n{perks}"
+VIP_BUY_BUTTON = "👑 VIP — {price}⭐ / 30 kun"
+VIP_INVOICE_TITLE = "👑 VIP obuna"
+VIP_INVOICE_DESCRIPTION = "30 kunlik VIP: 👑 belgisi, kunlik bonus ×2, har dushanba 🛡 Himoya, o'yinlar tarixi."
+VIP_LINK_ERROR = "VIP havolasini yaratib bo'lmadi, keyinroq urinib ko'ring."
+VIP_ACTIVATED = "👑 VIP faollashtirildi! Amal qilish muddati: {date}."
+VIP_RENEWED = "👑 VIP obunangiz yangilandi — {date} gacha."
+VIP_PAYMENT_ADMIN = "👑 VIP to'lovi: {name} (id=<code>{user_id}</code>) — {stars}⭐\nID: <code>{charge_id}</code>"
+VIP_WEEKLY_GIFT = "👑 VIP sovg'asi: {count} ta {emoji} {name} sumkangizga qo'shildi."
+VIP_BADGE = " 👑"
+MENU_VIP = "👑 VIP"
+PROFILE_VIP_LINE = "👑 VIP: {date} gacha"
+PROFILE_HISTORY_HEADER = "🕘 <b>Oxirgi o'yinlar:</b>"
+PROFILE_HISTORY_LINE = "{date} — {role} — {result}"
+PROFILE_HISTORY_WIN = "✅ g'alaba"
+PROFILE_HISTORY_LOSS = "❌ mag'lubiyat"
+PROFILE_HISTORY_AFK = "💤 AFK"
+PROFILE_HISTORY_EMPTY = "🕘 Hali o'yinlar tarixi yo'q."
+
+# ---------- 7-bosqich: ✨ birinchi xarid, 🌱 to'plam, 💝 sovg'a ----------
+FIRST_PURCHASE_BONUS = "✨ Birinchi xarid bonusi: olmos ×{multiplier}!"
+SHOP_FIRST_PURCHASE_NOTE = "✨ Birinchi Stars xaridingizda olmos ×{multiplier} beriladi!"
+SHOP_STARTER_INFO = "🌱 <b>Boshlang'ich to'plam</b> (1 marta): {diamonds}💎, {items} va «{title}» unvoni."
+SHOP_STARTER_BUTTON = "🌱 Boshlang'ich to'plam — {price}⭐"
+STARTER_INVOICE_TITLE = "🌱 Boshlang'ich to'plam"
+STARTER_INVOICE_DESCRIPTION = "{diamonds}💎, {items} va «{title}» unvoni. Har akkauntga 1 marta."
+STARTER_PACK_BOUGHT = "🌱 Boshlang'ich to'plam berildi! To'lov ID: <code>{charge_id}</code>"
+STARTER_NOT_AVAILABLE = "Boshlang'ich to'plam faqat hali hech narsa sotib olmaganlar uchun."
+SHOP_GIFT_BUTTON = "🎁 Sovg'a qilish"
+GIFT_ASK_RECIPIENT = (
+    "🎁 Kimga sovg'a qilasiz? Qabul qiluvchining ID raqami yoki @username'ini yuboring.\n"
+    "(U botga /start bosgan bo'lishi kerak.)"
+)
+GIFT_RECIPIENT_NOT_FOUND = "Bunday foydalanuvchi topilmadi — u botga hali /start bosmagan bo'lishi mumkin."
+MENU_INVITE = "🔗 Do'st taklif"
+GIFT_PRIVATE_ONLY = "🎁 Sovg'ani bot bilan shaxsiy chatda qiling: /shop"
+GIFT_SELF = "O'zingizga sovg'a qila olmaysiz — o'zingiz uchun /shop dan sotib oling."
+GIFT_CHOOSE_PACKAGE = "🎁 <b>{name}</b> uchun olmos paketini tanlang:"
+GIFT_INVOICE_TITLE = "🎁 {diamonds}💎 sovg'a"
+GIFT_INVOICE_DESCRIPTION = "{name} uchun {diamonds}💎 sovg'a. To'lovdan so'ng unga darhol yetkaziladi."
+GIFT_SENT = "✅ {name} ga {diamonds}💎 sovg'a qilindi! To'lov ID: <code>{charge_id}</code>"
+GIFT_RECEIVED = "🎁 <b>{name}</b> sizga {diamonds}💎 sovg'a qildi!"
+
+# ---------- 🔗 Do'st taklifi va 🤝 guruh egasi ulushi ----------
+REFERRAL_TEXT = (
+    "🔗 <b>Do'stlaringizni taklif qiling</b>\n\n"
+    "Havolangiz: {link}\n\n"
+    "Do'stingiz shu havola orqali botga kirib, birinchi Stars xaridini qilsa, sizga +{diamonds}💎 beriladi.\n"
+    "Taklif qilinganlar: {count} · ulardan xarid qilganlar: {rewarded}"
+)
+REFERRAL_REWARD = "🔗 Siz taklif qilgan do'st birinchi xaridini qildi — +{diamonds}💎!"
+OWNER_SHARE_PAID = "🤝 Guruhingizdagi o'yinchilar xaridlaridan ulush: +{diamonds}💎 hisobingizga tushdi."
+
+# ---------- 🏰 Guruh premiumi ----------
+GROUP_PREMIUM_PERKS = (
+    "• har dushanba 10:00 da guruhning haftalik statistikasi\n"
+    "• shu guruhda {games}+ o'yin o'ynaganlarga «🏰 {name}» unvoni\n"
+    "• /turnir — admin o'z olmosidan sovrin qo'yadigan turnirlar"
+)
+GROUP_PREMIUM_ACTIVE = "🏰 <b>Guruh premiumi faol</b> — {date} gacha.\n\n{perks}"
+GROUP_PREMIUM_INACTIVE = (
+    "🏰 <b>Guruh premiumi</b> — {price}⭐ / 30 kun (Telegram har oy o'zi yangilaydi, guruh admini to'laydi).\n\n{perks}"
+)
+GROUP_PREMIUM_LINK_SENT = "🏰 To'lov havolasi shaxsiy chatingizga yuborildi."
+GROUP_PREMIUM_BUTTON = "🏰 Guruh premiumi — {price}⭐ / 30 kun"
+GROUP_PREMIUM_INVOICE_TITLE = "🏰 Guruh premiumi"
+GROUP_PREMIUM_INVOICE_DESCRIPTION = "«{chat}» guruhi uchun 30 kunlik premium: haftalik statistika, guruh unvoni, turnirlar."
+GROUP_PREMIUM_ACTIVATED = "🏰 Guruh premiumi faollashtirildi — {date} gacha."
+GROUP_PREMIUM_GROUP_NOTICE = "🏰 Bu guruhda premium yoqildi ({date} gacha)! Haftalik statistika, guruh unvoni va /turnir ochildi."
+GROUP_PREMIUM_REQUIRED = "Bu imkoniyat faqat guruh premiumi faol bo'lganda ishlaydi: /premium"
+ADMIN_ONLY = "Buni faqat guruh adminlari qila oladi."
+GROUP_ONLY = "Bu buyruq faqat guruhda ishlaydi."
+START_BOT_PRIVATE = "Avval botga shaxsiy chatda /start bosing: https://t.me/{bot}"
+GROUP_STATS_TEXT = (
+    "📊 <b>O'tgan hafta statistikasi</b> ({since} — {until})\n\n"
+    "🎮 Jami o'yinlar: {games}\n"
+    "🏘 Tinch aholi g'alabalari: {town}% · 🔪 Mafiya g'alabalari: {mafia}%\n\n"
+    "🏆 <b>TOP-{top_n} (ball bo'yicha):</b>\n{top}\n\n"
+    "🔥 <b>Eng faol o'yinchilar:</b>\n{active}"
+)
+GROUP_STATS_TOP_LINE = "{place}. {name} — {points} ball"
+GROUP_STATS_ACTIVE_LINE = "{place}. {name} — {games} o'yin"
+GROUP_TITLE_GRANTED = "🏰 Siz «{chat}» guruhida {games} ta o'yin o'ynadingiz — «{title}» unvoni berildi! /sumka → 🎨 Kosmetika"
+
+# ---------- 🏆 Turnir ----------
+TOURNAMENT_CHOOSE_GAMES = "🏆 <b>Yangi turnir</b>\nNechta o'yin bo'lsin? (kamida {min_players} kishilik o'yinlar hisoblanadi)"
+TOURNAMENT_GAMES_BUTTON = "{n} ta o'yin"
+TOURNAMENT_CHOOSE_PRIZE = "🏆 {games} ta o'yin. Sovrin qancha bo'lsin? (sizning hisobingizdan yechiladi)"
+TOURNAMENT_PRIZE_BUTTON = "{prize}💎"
+TOURNAMENT_NOT_ENOUGH = "Olmosingiz yetarli emas (kerak: {prize}💎)."
+TOURNAMENT_ALREADY = "Bu guruhda allaqachon faol turnir bor."
+TOURNAMENT_STARTED = (
+    "🏆 <b>Turnir e'lon qilindi!</b>\n"
+    "Keyingi {games} ta o'yin (kamida {min_players} kishilik) turnir o'yini hisoblanadi. Sovrin: {prize}💎 "
+    "(1-o'rin {p1}%, 2-o'rin {p2}%, 3-o'rin {p3}%).\n"
+    "Ochko: g'alaba {win}, oxirigacha tirik qolish +{alive}, o'yindagi eng yaxshi {mvp_top} MVP +{mvp}.\n"
+    "Kirish bepul. Turnir {hours} soat ichida tugamasa, joriy natijalar bo'yicha yakunlanadi."
+)
+TOURNAMENT_STATUS = "🏆 <b>Faol turnir</b>: {played}/{games} o'yin, sovrin {prize}💎\n\n{table}"
+TOURNAMENT_CANCEL_BUTTON = "❌ Turnirni bekor qilish"
+TOURNAMENT_CANCELLED = "🏆 Turnir bekor qilindi, {prize}💎 adminga qaytarildi."
+TOURNAMENT_CANNOT_CANCEL = "Turnirni faqat birinchi o'yini boshlanguncha bekor qilish mumkin."
+TOURNAMENT_TABLE_HEADER = "🏆 <b>Turnir jadvali</b> ({played}/{games}):"
+TOURNAMENT_TABLE_LINE = "{place}. {name} — {points} ochko ({wins} g'alaba)"
+TOURNAMENT_TABLE_EMPTY = "hali natija yo'q"
+TOURNAMENT_FINISHED = "🏆 <b>Turnir yakunlandi!</b>\n{winners}"
+TOURNAMENT_WINNER_LINE = "{place}-o'rin: {name} — +{prize}💎"
+TOURNAMENT_NO_WINNERS = "Qatnashchilar bo'lmadi — sovrin adminga qaytarildi."
+TOURNAMENT_PRIZE_PRIVATE = "🏆 Turnirda {place}-o'rin! +{prize}💎 hisobingizga tushdi."
+
+# ---------- /sozlamalar: guruh nomi va ulush oluvchi ----------
+SETTINGS_BTN_GROUP_NAME = "🏰 Guruh unvoni nomi: {name}"
+SETTINGS_ASK_GROUP_NAME = "🏰 Guruh unvoni uchun qisqa nomni yozing ({max} belgigacha). Bu xabarga javob (reply) qiling."
+SETTINGS_GROUP_NAME_SAVED = "✅ Guruh unvoni: «🏰 {name}»."
+SETTINGS_GROUP_NAME_DEFAULT = "guruh nomi"
+SETTINGS_BTN_SHARE = "🤝 Ulush oluvchi: {name}"
+SETTINGS_SHARE_TITLE = "🤝 <b>Guruh egasi ulushi</b>\nO'yinchilar Stars xaridining {percent}% i shu kishiga yig'iladi. Faqat guruh yaratuvchisi o'zgartira oladi."
+SETTINGS_SHARE_CREATOR_ONLY = "Ulush oluvchini faqat guruh yaratuvchisi o'zgartira oladi."
+SETTINGS_SHARE_SET = "✅ Ulush oluvchi: {name}"
+SETTINGS_SHARE_CREATOR = "guruh yaratuvchisi"

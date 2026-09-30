@@ -90,7 +90,7 @@ class AfkTest(Registered):
         game.players[2].alive = False
         self.assertFalse(economy.did_win(game.players[2], "town"))
         with patch.multiple("economy.db", add_balance=AsyncMock(), record_game_result=AsyncMock(),
-                            add_points=AsyncMock(), record_role_result=AsyncMock()):
+                            add_points=AsyncMock(), record_role_result=AsyncMock(), log_game=AsyncMock(return_value=1), log_player_game=AsyncMock(), is_group_premium=AsyncMock(return_value=False)):
             await economy.payout_game_results(game, "town")
             paid = {c.args[0] for c in economy.db.add_balance.await_args_list}
             economy.db.record_role_result.assert_any_await(2, "civilian", False)
@@ -164,7 +164,7 @@ class RevealAndHistoryTest(Registered):
         self.assertIn("P2 P4ni himoya qildi", history)
         self.assertIn("Himoya", history)
         with patch.multiple("economy.db", add_balance=AsyncMock(), record_game_result=AsyncMock(),
-                            add_points=AsyncMock(), record_role_result=AsyncMock()), \
+                            add_points=AsyncMock(), record_role_result=AsyncMock(), log_game=AsyncMock(return_value=1), log_player_game=AsyncMock(), is_group_premium=AsyncMock(return_value=False)), \
              patch.object(engine, "unlock_chat", AsyncMock()):
             game.history += ["x" * 300] * 30  # 4096 dan uzun — bo'linib yuboriladi
             await engine.finish_game(self.bot, game, "town")

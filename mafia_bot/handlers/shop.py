@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
+import purchases
 import texts
 from config import ADMIN_IDS, CARD_PAYMENTS_ENABLED, PAYMENT_CARD_HOLDER, PAYMENT_CARD_NUMBER, PAYMENT_CONTACT_USERNAME
 from economy import (
@@ -12,7 +13,13 @@ from economy import (
     CURRENCY_EMOJI,
     DIAMOND_PACKAGES,
     DIAMOND_TO_DOLLAR_RATE,
+    FIRST_PURCHASE_MULTIPLIER,
+    ITEMS,
     STARS_PACKAGES,
+    STARTER_PACK_DIAMONDS,
+    STARTER_PACK_ITEMS,
+    STARTER_PACK_PRICE_STARS,
+    STARTER_PACK_TITLE,
 )
 from i18n import texts_for_user
 from utils import esc
@@ -42,8 +49,13 @@ def card_payments_available() -> bool:
     return CARD_PAYMENTS_ENABLED and bool(PAYMENT_CARD_NUMBER)
 
 
-def shop_view(L=texts) -> tuple[str, InlineKeyboardMarkup]:
-    """Telegram Stars paketlari birinchi, karta orqali to'lov (yoqilgan bo'lsa) — keyin."""
+def starter_items_text(L=texts) -> str:
+    return ", ".join(f"{count}× {ITEMS[key]['emoji']} {L.ITEM_NAMES[key]}" for key, count in STARTER_PACK_ITEMS)
+
+
+def shop_view(L=texts, starter: bool = False, first: bool = False) -> tuple[str, InlineKeyboardMarkup]:
+    """Telegram Stars paketlari birinchi, keyin 🌱 boshlang'ich to'plam (faqat hech narsa olmaganlarga),
+    🎁 sovg'a, karta orqali to'lov (yoqilgan bo'lsa) — oxirida."""
     stars_buttons = [
         InlineKeyboardButton(
             text=L.SHOP_STARS_BUTTON.format(diamonds=diamonds, stars=stars),
@@ -53,6 +65,16 @@ def shop_view(L=texts) -> tuple[str, InlineKeyboardMarkup]:
     ]
     rows = [stars_buttons[i : i + 2] for i in range(0, len(stars_buttons), 2)]
     lines = [L.SHOP_TITLE, L.SHOP_WHY_DIAMONDS, "", L.SHOP_STARS_SECTION]
+    if first:
+        lines.append(L.SHOP_FIRST_PURCHASE_NOTE.format(multiplier=FIRST_PURCHASE_MULTIPLIER))
+    if starter:
+        lines += ["", L.SHOP_STARTER_INFO.format(
+            diamonds=STARTER_PACK_DIAMONDS, items=starter_items_text(L), title=L.COSMETIC_NAMES[STARTER_PACK_TITLE]
+        )]
+        rows.append([InlineKeyboardButton(
+            text=L.SHOP_STARTER_BUTTON.format(price=STARTER_PACK_PRICE_STARS), callback_data="stars:starter"
+        )])
+    rows.append([InlineKeyboardButton(text=L.SHOP_GIFT_BUTTON, callback_data="stars:gift")])
     if card_payments_available():
         rows += build_shop_keyboard(L).inline_keyboard
         lines += ["", L.SHOP_CARD_SECTION]
@@ -60,10 +82,16 @@ def shop_view(L=texts) -> tuple[str, InlineKeyboardMarkup]:
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+async def user_shop_view(user_id: int, L=texts) -> tuple[str, InlineKeyboardMarkup]:
+    starter = await purchases.starter_available(user_id)
+    first = await purchases.is_first_package_purchase(user_id)
+    return shop_view(L, starter=starter, first=first)
+
+
 @router.message(Command("shop", "olmos"))
 async def cmd_shop(message: Message, L=texts) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    text, kb = shop_view(L)
+    text, kb = await user_shop_view(message.from_user.id, L)
     await message.answer(text, reply_markup=kb)
 
 

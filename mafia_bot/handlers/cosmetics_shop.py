@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import cosmetics
 import db
 import texts
-from economy import COSMETICS, COSMETICS_BY_KEY, CURRENCY_EMOJI, DEATH_STYLE, FRAME
+from economy import COSMETICS, COSMETICS_BY_KEY, CURRENCY_EMOJI, DEATH_STYLE, FRAME, TITLE
 
 router = Router(name="cosmetics")
 
@@ -48,7 +48,9 @@ def store_view(owned: set[str], L=texts) -> tuple[str, InlineKeyboardMarkup]:
 
 
 def mine_view(owned: set[str], active: dict[str, str], L=texts) -> tuple[str, InlineKeyboardMarkup]:
-    mine = [c for c in COSMETICS if c["key"] in owned]
+    # Guruh unvonlari ("🏰 <nom>") katalogda yo'q — dinamik qo'shiladi (nomlari keshdan).
+    group_titles = [{"key": k, "kind": TITLE} for k in sorted(owned) if k.startswith(cosmetics.GROUP_TITLE_PREFIX)]
+    mine = [c for c in COSMETICS if c["key"] in owned] + group_titles
     if not mine:
         return L.COSMETICS_MY_EMPTY, InlineKeyboardMarkup(inline_keyboard=[])
     lines = [L.COSMETICS_MY_TITLE]
@@ -59,7 +61,8 @@ def mine_view(owned: set[str], active: dict[str, str], L=texts) -> tuple[str, In
             continue
         lines += ["", f"<b>{L.COSMETIC_KIND_NAMES[kind]}</b>"]
         for item in items:
-            name = L.COSMETIC_NAMES[item["key"]]
+            name = cosmetics.title_name(item["key"], L) if kind == TITLE else L.COSMETIC_NAMES[item["key"]]
+            name = name or item["key"]
             label = L.COSMETIC_OWNED_LINE.format(name=name) if active.get(kind) == item["key"] else name
             lines.append(label)
             rows.append([InlineKeyboardButton(text=label, callback_data=f"cosm_use:{item['key']}")])
@@ -68,6 +71,13 @@ def mine_view(owned: set[str], active: dict[str, str], L=texts) -> tuple[str, In
                 text=L.COSMETIC_TAKE_OFF.format(kind=L.COSMETIC_KIND_NAMES[kind]), callback_data=f"cosm_off:{kind}"
             )])
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _owned_loaded(user_id: int) -> set[str]:
+    owned = await db.owned_cosmetics(user_id)
+    for key in owned:
+        await cosmetics.load_title(key)
+    return owned
 
 
 async def _edit(callback: CallbackQuery, text: str, kb: InlineKeyboardMarkup) -> None:
@@ -89,7 +99,7 @@ async def on_store(callback: CallbackQuery, UL=texts) -> None:
 async def on_mine(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     user_id = callback.from_user.id
-    text, kb = mine_view(await db.owned_cosmetics(user_id), await cosmetics.active(user_id), UL)
+    text, kb = mine_view(await _owned_loaded(user_id), await cosmetics.active(user_id), UL)
     await callback.message.answer(text, reply_markup=kb)
 
 
@@ -122,7 +132,7 @@ async def on_use(callback: CallbackQuery, UL=texts) -> None:
         await callback.answer(UL.COSMETIC_NOT_FOR_SALE, show_alert=True)
         return
     await callback.answer(UL.COSMETIC_ACTIVATED)
-    text, kb = mine_view(await db.owned_cosmetics(user_id), await cosmetics.active(user_id), UL)
+    text, kb = mine_view(await _owned_loaded(user_id), await cosmetics.active(user_id), UL)
     await _edit(callback, text, kb)
 
 
@@ -135,5 +145,5 @@ async def on_take_off(callback: CallbackQuery, UL=texts) -> None:
     user_id = callback.from_user.id
     await cosmetics.take_off(user_id, kind)
     await callback.answer(UL.COSMETIC_REMOVED)
-    text, kb = mine_view(await db.owned_cosmetics(user_id), await cosmetics.active(user_id), UL)
+    text, kb = mine_view(await _owned_loaded(user_id), await cosmetics.active(user_id), UL)
     await _edit(callback, text, kb)

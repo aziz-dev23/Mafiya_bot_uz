@@ -182,11 +182,130 @@ async def _migrate_cosmetics_season() -> None:
     )
 
 
+async def _migrate_bonus_vip_logs() -> None:
+    """7-bosqich: kunlik bonus, VIP obuna va o'yinlar jurnali (VIP tarixi, guruh statistikasi uchun)."""
+    await _conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS daily_bonus (
+            user_id INTEGER PRIMARY KEY,
+            last_day TEXT NOT NULL,
+            streak INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS vip (
+            user_id INTEGER PRIMARY KEY,
+            until INTEGER NOT NULL,
+            charge_id TEXT
+        );
+        -- Har dushanba beriladigan bepul buyum ikki marta berilmasligi uchun.
+        CREATE TABLE IF NOT EXISTS vip_weekly_items (
+            user_id INTEGER NOT NULL,
+            week_start INTEGER NOT NULL,
+            PRIMARY KEY (user_id, week_start)
+        );
+        CREATE TABLE IF NOT EXISTS game_results (
+            game_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER NOT NULL,
+            winner TEXT NOT NULL,
+            players INTEGER NOT NULL,
+            ended_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS game_log (
+            game_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            chat_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            won INTEGER NOT NULL,
+            alive INTEGER NOT NULL,
+            afk INTEGER NOT NULL,
+            points INTEGER NOT NULL,
+            ended_at INTEGER NOT NULL,
+            PRIMARY KEY (game_id, user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_log_user ON game_log (user_id, ended_at);
+        CREATE INDEX IF NOT EXISTS idx_game_log_chat ON game_log (chat_id, ended_at);
+        CREATE INDEX IF NOT EXISTS idx_game_results_chat ON game_results (chat_id, ended_at);
+        -- Stars to'lovi bilan (asosiy olmosdan tashqari) berilgan narsalar: pul qaytarilsa hammasi
+        -- shu jurnal bo'yicha qaytarib olinadi. kind: diamond, item, vip, cosmetic, share.
+        CREATE TABLE IF NOT EXISTS payment_grants (
+            charge_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            key TEXT,
+            amount INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_payment_grants_charge ON payment_grants (charge_id);
+        -- payer_id: to'lagan kishi (sovg'ada olmos boshqa odamga — user_id ga tushadi); kind: to'lov turi.
+        ALTER TABLE star_payments ADD COLUMN payer_id INTEGER;
+        ALTER TABLE star_payments ADD COLUMN kind TEXT NOT NULL DEFAULT 'diamonds';
+        """
+    )
+
+
+async def _migrate_purchases_groups() -> None:
+    """7-bosqich: guruh egasi ulushi, do'st takliflari, guruh premiumi, haftalik statistika, turnirlar."""
+    await _conn.executescript(
+        """
+        -- Ulush milli-olmosda yig'iladi (1000 = 1💎); manfiy bo'lishi mumkin (qaytarilgan xarid).
+        CREATE TABLE IF NOT EXISTS owner_share (
+            user_id INTEGER PRIMARY KEY,
+            millis INTEGER NOT NULL DEFAULT 0
+        );
+        -- Guruh yaratuvchisi ulushni boshqa adminga o'tkazsa — shu yerda.
+        CREATE TABLE IF NOT EXISTS group_owner (
+            chat_id INTEGER PRIMARY KEY,
+            owner_id INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS referrals (
+            user_id INTEGER PRIMARY KEY,
+            referrer_id INTEGER NOT NULL,
+            rewarded INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS group_premium (
+            chat_id INTEGER PRIMARY KEY,
+            until INTEGER NOT NULL,
+            payer_id INTEGER,
+            charge_id TEXT
+        );
+        CREATE TABLE IF NOT EXISTS group_weekly_stats (
+            chat_id INTEGER NOT NULL,
+            week_start INTEGER NOT NULL,
+            PRIMARY KEY (chat_id, week_start)
+        );
+        -- Guruh unvoni ("🏰 <nom>") uchun guruh nomi (o'yin paytida yangilanadi).
+        CREATE TABLE IF NOT EXISTS group_chats (
+            chat_id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS tournaments (
+            tournament_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER NOT NULL,
+            admin_id INTEGER NOT NULL,
+            games_total INTEGER NOT NULL,
+            games_played INTEGER NOT NULL DEFAULT 0,
+            prize INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tournaments_chat ON tournaments (chat_id, status);
+        CREATE TABLE IF NOT EXISTS tournament_scores (
+            tournament_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            points INTEGER NOT NULL DEFAULT 0,
+            wins INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (tournament_id, user_id)
+        );
+        """
+    )
+
+
 # Tartib muhim: yangi migratsiyalar faqat ro'yxat oxiriga qo'shiladi.
 _MIGRATIONS = (
     ("2026_09_killer_shield_x10", _migrate_killer_shield_x10),
     ("2026_10_users_lang", _migrate_users_lang),
     ("2026_10_cosmetics_season", _migrate_cosmetics_season),
+    ("2026_10_bonus_vip_logs", _migrate_bonus_vip_logs),
+    ("2026_10_purchases_groups", _migrate_purchases_groups),
 )
 
 
@@ -628,19 +747,62 @@ async def points_rank(user_id: int, since: int | None = None) -> tuple[int, int]
     return higher + 1, total
 
 
-async def record_star_payment(charge_id: str, user_id: int, diamonds: int, stars: int, payload: str) -> bool:
-    """To'lovni saqlaydi va olmosni qo'shadi (bitta commit'da). Shu charge_id allaqachon
-    bo'lsa (Telegram update'ni qayta yuborgan) hech narsa qilmaydi va False qaytaradi."""
+async def record_star_payment(
+    charge_id: str,
+    user_id: int,
+    diamonds: int,
+    stars: int,
+    payload: str,
+    payer_id: int | None = None,
+    kind: str = "diamonds",
+) -> bool:
+    """To'lovni saqlaydi va olmosni user_id ga qo'shadi (bitta commit'da). Shu charge_id allaqachon
+    bo'lsa (Telegram update'ni qayta yuborgan) hech narsa qilmaydi va False qaytaradi.
+    payer_id — to'lagan kishi (sovg'ada user_id dan farq qiladi), kind — to'lov turi."""
     cur = await _conn.execute(
-        "INSERT OR IGNORE INTO star_payments (charge_id, user_id, diamonds, stars, payload, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (charge_id, user_id, diamonds, stars, payload, int(time.time())),
+        "INSERT OR IGNORE INTO star_payments (charge_id, user_id, diamonds, stars, payload, created_at, payer_id, kind) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (charge_id, user_id, diamonds, stars, payload, int(time.time()), payer_id or user_id, kind),
     )
     if cur.rowcount == 0:
         return False
-    await _conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (diamonds, user_id))
+    if diamonds:
+        await _conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (diamonds, user_id))
     await _conn.commit()
     return True
+
+
+async def add_payment_grant(charge_id: str, user_id: int, kind: str, key: str | None = None, amount: int = 0) -> None:
+    await _conn.execute(
+        "INSERT INTO payment_grants (charge_id, user_id, kind, key, amount) VALUES (?, ?, ?, ?, ?)",
+        (charge_id, user_id, kind, key, amount),
+    )
+    await _conn.commit()
+
+
+async def payment_grants(charge_id: str) -> list[aiosqlite.Row]:
+    cur = await _conn.execute("SELECT * FROM payment_grants WHERE charge_id = ?", (charge_id,))
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def take_item(user_id: int, item_key: str, count: int) -> int:
+    """Buyumni qaytarib oladi (bor miqdordan ko'p emas). Olingan sonni qaytaradi."""
+    have = await item_count(user_id, item_key)
+    taken = min(have, count)
+    if taken:
+        await _conn.execute(
+            "UPDATE inventory SET count = count - ? WHERE user_id = ? AND item_key = ?", (taken, user_id, item_key)
+        )
+        await _conn.commit()
+    return taken
+
+
+async def revoke_cosmetic(user_id: int, key: str) -> None:
+    await _conn.execute("DELETE FROM cosmetics_owned WHERE user_id = ? AND key = ?", (user_id, key))
+    await _conn.execute("DELETE FROM cosmetics_active WHERE user_id = ? AND key = ?", (user_id, key))
+    await _conn.commit()
 
 
 async def get_star_payment(charge_id: str) -> aiosqlite.Row | None:
@@ -718,15 +880,28 @@ async def grant_cosmetic(user_id: int, key: str, expires_at: int | None = None) 
     return True
 
 
+GROUP_TITLE_PREFIX = "group:"
+
+
 async def owned_cosmetics(user_id: int) -> set[str]:
-    """Muddati o'tmagan barcha kosmetika kalitlari."""
+    """Muddati o'tmagan barcha kosmetika kalitlari. Guruh unvonlari ("group:<chat_id>") faqat shu
+    guruhning premiumi faol bo'lganda hisoblanadi (premium yangilansa, unvon qaytadi)."""
+    now = int(time.time())
     cur = await _conn.execute(
         "SELECT key FROM cosmetics_owned WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)",
-        (user_id, int(time.time())),
+        (user_id, now),
     )
     rows = await cur.fetchall()
     await cur.close()
-    return {row["key"] for row in rows}
+    keys = set()
+    for row in rows:
+        key = row["key"]
+        if key.startswith(GROUP_TITLE_PREFIX):
+            chat_id = int(key[len(GROUP_TITLE_PREFIX):])
+            if await group_premium_until(chat_id) <= now:
+                continue
+        keys.add(key)
+    return keys
 
 
 async def set_active_cosmetic(user_id: int, kind: str, key: str | None, prev_key: str | None = None) -> None:
@@ -753,6 +928,8 @@ async def active_cosmetics(user_id: int) -> dict[str, str]:
         if row["key"] in owned:
             active[row["kind"]] = row["key"]
             continue
+        if row["key"].startswith(GROUP_TITLE_PREFIX):
+            continue  # premium tugagan — unvonsiz ko'rinadi, lekin tanlov saqlanadi
         restored = row["prev_key"] if row["prev_key"] in owned else None
         await set_active_cosmetic(user_id, row["kind"], restored)
         if restored:
@@ -825,3 +1002,388 @@ async def season_players_to_remind(season: int) -> list[int]:
     await _conn.execute("UPDATE season_progress SET reminded = 1 WHERE season = ?", (season,))
     await _conn.commit()
     return [row["user_id"] for row in rows]
+
+
+# ---------- 🎁 Kunlik bonus ----------
+
+
+async def daily_bonus_state(user_id: int) -> aiosqlite.Row | None:
+    cur = await _conn.execute("SELECT last_day, streak FROM daily_bonus WHERE user_id = ?", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row
+
+
+async def claim_daily_bonus(user_id: int, day: str, streak: int, dollars: int, diamonds: int) -> bool:
+    """Bugungi bonusni atomik beradi: shu kun uchun allaqachon olingan bo'lsa False (hech narsa o'zgarmaydi)."""
+    cur = await _conn.execute(
+        "INSERT INTO daily_bonus (user_id, last_day, streak) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET last_day = excluded.last_day, streak = excluded.streak "
+        "WHERE daily_bonus.last_day != excluded.last_day",
+        (user_id, day, streak),
+    )
+    if cur.rowcount == 0:
+        await _conn.commit()
+        return False
+    await _conn.execute(
+        "UPDATE users SET dollars = dollars + ?, diamonds = diamonds + ? WHERE user_id = ?",
+        (dollars, diamonds, user_id),
+    )
+    await _conn.commit()
+    return True
+
+
+# ---------- 👑 VIP ----------
+
+
+async def vip_until(user_id: int) -> int:
+    cur = await _conn.execute("SELECT until FROM vip WHERE user_id = ?", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["until"] if row else 0
+
+
+async def is_vip(user_id: int) -> bool:
+    return await vip_until(user_id) > time.time()
+
+
+async def set_vip_until(user_id: int, until: int, charge_id: str | None) -> None:
+    await _conn.execute(
+        "INSERT INTO vip (user_id, until, charge_id) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET until = excluded.until, charge_id = excluded.charge_id",
+        (user_id, until, charge_id),
+    )
+    await _conn.commit()
+
+
+async def active_vip_users() -> list[int]:
+    cur = await _conn.execute("SELECT user_id FROM vip WHERE until > ?", (int(time.time()),))
+    rows = await cur.fetchall()
+    await cur.close()
+    return [row["user_id"] for row in rows]
+
+
+async def mark_vip_weekly_item(user_id: int, week_start: int) -> bool:
+    """Shu hafta uchun birinchi marta bo'lsa True (buyumni berish mumkin)."""
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO vip_weekly_items (user_id, week_start) VALUES (?, ?)", (user_id, week_start)
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+# ---------- O'yinlar jurnali ----------
+
+
+async def log_game(chat_id: int, winner: str, players: int) -> int:
+    cur = await _conn.execute(
+        "INSERT INTO game_results (chat_id, winner, players, ended_at) VALUES (?, ?, ?, ?)",
+        (chat_id, winner, players, int(time.time())),
+    )
+    await _conn.commit()
+    return cur.lastrowid
+
+
+async def log_player_game(
+    game_id: int, user_id: int, chat_id: int, role: str, won: bool, alive: bool, afk: bool, points: int
+) -> None:
+    await _conn.execute(
+        "INSERT OR IGNORE INTO game_log (game_id, user_id, chat_id, role, won, alive, afk, points, ended_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (game_id, user_id, chat_id, role, int(won), int(alive), int(afk), points, int(time.time())),
+    )
+    await _conn.commit()
+
+
+async def recent_games(user_id: int, limit: int) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT role, won, afk, ended_at FROM game_log WHERE user_id = ? ORDER BY ended_at DESC, game_id DESC LIMIT ?",
+        (user_id, limit),
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def games_in_chat(user_id: int, chat_id: int) -> int:
+    cur = await _conn.execute(
+        "SELECT COUNT(*) AS n FROM game_log WHERE user_id = ? AND chat_id = ?", (user_id, chat_id)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row["n"]
+
+
+# ---------- Xaridlar tarixi ----------
+
+
+async def has_any_purchase(user_id: int) -> bool:
+    """Hech qachon xarid qilganmi (Stars — sovg'adan tashqari, yoki tasdiqlangan karta buyurtmasi)."""
+    cur = await _conn.execute(
+        "SELECT 1 FROM star_payments WHERE COALESCE(payer_id, user_id) = ? AND kind != 'gift' LIMIT 1", (user_id,)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    if row:
+        return True
+    cur = await _conn.execute(
+        "SELECT 1 FROM diamond_orders WHERE user_id = ? AND status = 'approved' LIMIT 1", (user_id,)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row is not None
+
+
+async def star_purchase_count(user_id: int, kinds: tuple[str, ...]) -> int:
+    marks = ",".join("?" * len(kinds))
+    cur = await _conn.execute(
+        f"SELECT COUNT(*) AS n FROM star_payments WHERE COALESCE(payer_id, user_id) = ? AND kind IN ({marks})",
+        (user_id, *kinds),
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row["n"]
+
+
+async def last_played_chat(user_id: int) -> int | None:
+    cur = await _conn.execute(
+        "SELECT chat_id FROM game_log WHERE user_id = ? ORDER BY ended_at DESC, game_id DESC LIMIT 1", (user_id,)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row["chat_id"] if row else None
+
+
+# ---------- 🤝 Guruh egasi ulushi ----------
+
+
+async def add_owner_share(user_id: int, millis: int) -> int:
+    """Ulush yig'indisiga qo'shadi (manfiy ham bo'lishi mumkin) va yangi yig'indini qaytaradi."""
+    await _conn.execute(
+        "INSERT INTO owner_share (user_id, millis) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET millis = millis + excluded.millis",
+        (user_id, millis),
+    )
+    await _conn.commit()
+    cur = await _conn.execute("SELECT millis FROM owner_share WHERE user_id = ?", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["millis"]
+
+
+async def settle_owner_share(user_id: int) -> int:
+    """Yig'ilgan butun olmoslarni hisobga o'tkazadi (foydalanuvchi botda bo'lsa). O'tkazilgan olmos soni."""
+    if await get_user(user_id) is None:
+        return 0
+    cur = await _conn.execute("SELECT millis FROM owner_share WHERE user_id = ?", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    whole = (row["millis"] // 1000) if row and row["millis"] > 0 else 0
+    if whole <= 0:
+        return 0
+    await _conn.execute("UPDATE owner_share SET millis = millis - ? WHERE user_id = ?", (whole * 1000, user_id))
+    await _conn.execute("UPDATE users SET diamonds = diamonds + ? WHERE user_id = ?", (whole, user_id))
+    await _conn.commit()
+    return whole
+
+
+async def get_group_owner_override(chat_id: int) -> int | None:
+    cur = await _conn.execute("SELECT owner_id FROM group_owner WHERE chat_id = ?", (chat_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["owner_id"] if row else None
+
+
+async def set_group_owner_override(chat_id: int, owner_id: int | None) -> None:
+    if owner_id is None:
+        await _conn.execute("DELETE FROM group_owner WHERE chat_id = ?", (chat_id,))
+    else:
+        await _conn.execute(
+            "INSERT INTO group_owner (chat_id, owner_id) VALUES (?, ?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET owner_id = excluded.owner_id",
+            (chat_id, owner_id),
+        )
+    await _conn.commit()
+
+
+# ---------- 🔗 Do'st taklifi ----------
+
+
+async def add_referral(user_id: int, referrer_id: int) -> bool:
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO referrals (user_id, referrer_id, created_at) VALUES (?, ?, ?)",
+        (user_id, referrer_id, int(time.time())),
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def claim_referral_reward(user_id: int) -> int | None:
+    """Taklif qilgan kishining id si — faqat bir marta (keyin None)."""
+    # RETURNING ishlatilmaydi — serverdagi eski SQLite (< 3.35) ham qo'llab-quvvatlashi uchun.
+    cur = await _conn.execute("SELECT referrer_id FROM referrals WHERE user_id = ? AND rewarded = 0", (user_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    if not row:
+        return None
+    cur = await _conn.execute("UPDATE referrals SET rewarded = 1 WHERE user_id = ? AND rewarded = 0", (user_id,))
+    await _conn.commit()
+    return row["referrer_id"] if cur.rowcount > 0 else None
+
+
+async def referral_count(referrer_id: int) -> tuple[int, int]:
+    """(taklif qilinganlar, ulardan xarid qilganlar)."""
+    cur = await _conn.execute(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(rewarded), 0) AS r FROM referrals WHERE referrer_id = ?", (referrer_id,)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row["n"], row["r"]
+
+
+# ---------- 🏰 Guruh premiumi ----------
+
+
+async def group_premium_until(chat_id: int) -> int:
+    cur = await _conn.execute("SELECT until FROM group_premium WHERE chat_id = ?", (chat_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["until"] if row else 0
+
+
+async def is_group_premium(chat_id: int) -> bool:
+    return await group_premium_until(chat_id) > time.time()
+
+
+async def set_group_premium(chat_id: int, until: int, payer_id: int | None, charge_id: str | None) -> None:
+    await _conn.execute(
+        "INSERT INTO group_premium (chat_id, until, payer_id, charge_id) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET until = excluded.until, payer_id = excluded.payer_id, "
+        "charge_id = excluded.charge_id",
+        (chat_id, until, payer_id, charge_id),
+    )
+    await _conn.commit()
+
+
+async def premium_group_ids() -> list[int]:
+    cur = await _conn.execute("SELECT chat_id FROM group_premium WHERE until > ?", (int(time.time()),))
+    rows = await cur.fetchall()
+    await cur.close()
+    return [row["chat_id"] for row in rows]
+
+
+async def mark_group_weekly_stats(chat_id: int, week_start: int) -> bool:
+    cur = await _conn.execute(
+        "INSERT OR IGNORE INTO group_weekly_stats (chat_id, week_start) VALUES (?, ?)", (chat_id, week_start)
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def set_group_title(chat_id: int, title: str) -> None:
+    await _conn.execute(
+        "INSERT INTO group_chats (chat_id, title) VALUES (?, ?) ON CONFLICT(chat_id) DO UPDATE SET title = excluded.title",
+        (chat_id, title),
+    )
+    await _conn.commit()
+
+
+async def get_group_title(chat_id: int) -> str | None:
+    cur = await _conn.execute("SELECT title FROM group_chats WHERE chat_id = ?", (chat_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["title"] if row else None
+
+
+async def group_week_stats(chat_id: int, since: int, until: int) -> dict:
+    """Guruhning [since, until) oralig'idagi statistikasi."""
+    cur = await _conn.execute(
+        "SELECT winner, COUNT(*) AS n FROM game_results WHERE chat_id = ? AND ended_at >= ? AND ended_at < ? "
+        "GROUP BY winner",
+        (chat_id, since, until),
+    )
+    by_winner = {row["winner"]: row["n"] for row in await cur.fetchall()}
+    await cur.close()
+    cur = await _conn.execute(
+        "SELECT game_log.user_id AS user_id, users.full_name AS full_name, SUM(points) AS points, COUNT(*) AS games "
+        "FROM game_log JOIN users ON users.user_id = game_log.user_id "
+        "WHERE chat_id = ? AND ended_at >= ? AND ended_at < ? GROUP BY game_log.user_id",
+        (chat_id, since, until),
+    )
+    players = [dict(row) for row in await cur.fetchall()]
+    await cur.close()
+    return {"by_winner": by_winner, "players": players}
+
+
+# ---------- 🏆 Turnirlar ----------
+
+
+async def active_tournament(chat_id: int) -> aiosqlite.Row | None:
+    cur = await _conn.execute(
+        "SELECT * FROM tournaments WHERE chat_id = ? AND status = 'active' ORDER BY tournament_id DESC LIMIT 1",
+        (chat_id,),
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row
+
+
+async def create_tournament(chat_id: int, admin_id: int, games_total: int, prize: int) -> int | None:
+    """Sovrinni admin hisobidan yechib, turnir yaratadi. Olmos yetmasa yoki faol turnir bo'lsa None."""
+    if await active_tournament(chat_id):
+        return None
+    if not await spend_balance(admin_id, "diamonds", prize):
+        return None
+    cur = await _conn.execute(
+        "INSERT INTO tournaments (chat_id, admin_id, games_total, prize, created_at) VALUES (?, ?, ?, ?, ?)",
+        (chat_id, admin_id, games_total, prize, int(time.time())),
+    )
+    await _conn.commit()
+    return cur.lastrowid
+
+
+async def set_tournament_status(tournament_id: int, from_status: str, to_status: str) -> bool:
+    cur = await _conn.execute(
+        "UPDATE tournaments SET status = ? WHERE tournament_id = ? AND status = ?", (to_status, tournament_id, from_status)
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def add_tournament_game(tournament_id: int, scores: dict[int, tuple[int, int]]) -> int:
+    """O'yin natijasini qo'shadi: {user_id: (ochko, g'alaba 0/1)}. O'tgan o'yinlar sonini qaytaradi."""
+    for user_id, (points, win) in scores.items():
+        await _conn.execute(
+            "INSERT INTO tournament_scores (tournament_id, user_id, points, wins) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(tournament_id, user_id) DO UPDATE SET points = points + excluded.points, "
+            "wins = wins + excluded.wins",
+            (tournament_id, user_id, points, win),
+        )
+    await _conn.execute("UPDATE tournaments SET games_played = games_played + 1 WHERE tournament_id = ?", (tournament_id,))
+    await _conn.commit()
+    cur = await _conn.execute("SELECT games_played FROM tournaments WHERE tournament_id = ?", (tournament_id,))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["games_played"]
+
+
+async def tournament_scores(tournament_id: int) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT tournament_scores.user_id AS user_id, users.full_name AS full_name, "
+        "tournament_scores.points AS points, tournament_scores.wins AS wins "
+        "FROM tournament_scores JOIN users ON users.user_id = tournament_scores.user_id "
+        "WHERE tournament_id = ?",
+        (tournament_id,),
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def expired_tournaments(older_than: int) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(
+        "SELECT * FROM tournaments WHERE status = 'active' AND created_at < ?", (older_than,)
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows

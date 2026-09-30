@@ -1,3 +1,6 @@
+import time
+from datetime import datetime, timedelta, timezone
+
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
@@ -6,12 +9,13 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import cosmetics
 import db
 import texts
-from config import ADMIN_IDS
+from config import ADMIN_IDS, TIMEZONE_OFFSET_HOURS
 from game.models import Role
-from economy import FRAME, ITEMS, TITLE
+from economy import FRAME, ITEMS, TITLE, VIP_HISTORY_GAMES
 from utils import esc
 
 router = Router(name="admin")
+_TZ = timezone(timedelta(hours=TIMEZONE_OFFSET_HOURS))
 
 
 async def build_profile_view(
@@ -27,7 +31,8 @@ async def build_profile_view(
 
     lines = [
         L.PROFILE_TEXT.format(
-            name=cosmetics.display_name(esc(full_name), L, active.get(TITLE), hero_level), user_id=user_id,
+            name=cosmetics.display_name(esc(full_name), L, active.get(TITLE), hero_level, await db.is_vip(user_id)),
+            user_id=user_id,
             dollars=user_row["dollars"], diamonds=user_row["diamonds"], coins=user_row["coins"],
             daily=points["daily"], weekly=points["weekly"], monthly=points["monthly"], total=points["total"],
             hero=L.PROFILE_HERO_LEVEL.format(level=hero_level) if hero_level else L.PROFILE_HERO_NONE,
@@ -55,6 +60,11 @@ async def build_profile_view(
             lines.append(
                 L.PROFILE_ROLE_STATS_LINE.format(role=L.ROLE_NAMES[Role(row["role"])], games=row["games"], pct=pct)
             )
+    vip_until = await db.vip_until(user_id)
+    if vip_until > time.time():
+        lines.append("")
+        lines.append(L.PROFILE_VIP_LINE.format(date=_date(vip_until)))
+        lines.append(await _history_block(user_id, L))
     if inventory_rows:
         lines.append("")
         lines.append(L.PROFILE_TOGGLE_HINT)
@@ -78,6 +88,23 @@ async def build_profile_view(
     return _framed("\n".join(lines), active.get(FRAME), L), InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def _date(ts: int) -> str:
+    return datetime.fromtimestamp(ts, _TZ).strftime("%d.%m.%Y")
+
+
+async def _history_block(user_id: int, L) -> str:
+    """👑 VIP: oxirgi VIP_HISTORY_GAMES ta o'yin (rol va natija)."""
+    rows = await db.recent_games(user_id, VIP_HISTORY_GAMES)
+    if not rows:
+        return L.PROFILE_HISTORY_EMPTY
+    lines = [L.PROFILE_HISTORY_HEADER]
+    for row in rows:
+        role = L.ROLE_NAMES[Role(row["role"])] if row["role"] in Role._value2member_map_ else row["role"]
+        result = L.PROFILE_HISTORY_AFK if row["afk"] else (L.PROFILE_HISTORY_WIN if row["won"] else L.PROFILE_HISTORY_LOSS)
+        lines.append(L.PROFILE_HISTORY_LINE.format(date=_date(row["ended_at"]), role=role, result=result))
+    return "\n".join(lines)
+
+
 def _framed(text: str, frame_key: str | None, L) -> str:
     """Profil ramkasi: matnning tepasi va pastidagi bezak qator."""
     line = cosmetics.frame_line(frame_key, L)
@@ -92,7 +119,10 @@ async def build_public_profile(user_id: int, L=texts) -> str:
     active = await cosmetics.active(user_id)
     rank = await db.points_rank(user_id)
     text = L.PUBLIC_PROFILE.format(
-        name=cosmetics.display_name(esc(user_row["full_name"]), L, active.get(TITLE), await db.get_hero_level(user_id)),
+        name=cosmetics.display_name(
+            esc(user_row["full_name"]), L, active.get(TITLE), await db.get_hero_level(user_id),
+            await db.is_vip(user_id),
+        ),
         games=user_row["games"], wins=user_row["wins"],
         place=rank[0] if rank else L.PUBLIC_PROFILE_NO_RANK,
     )

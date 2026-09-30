@@ -120,6 +120,9 @@ HELP_TEXT = (
     "/sumka — ваши предметы, включение/выключение перед игрой\n"
     "/buyumlar — что делает каждый предмет\n"
     "/mavsum — сезонный пропуск: уровень, XP и награды\n"
+    "/bonus — ежедневный бонус, /vip — VIP-подписка\n"
+    "/taklif — ссылка для приглашения друзей\n"
+    "/premium — премиум группы, /turnir — турнир (в группе)\n"
     "/send — отправить доллары другому пользователю\n"
     "/sendgem — отправить алмазы другому пользователю\n"
     "/geroy — купить Героя / повысить уровень\n"
@@ -784,6 +787,11 @@ BOT_COMMANDS = {
     "sumka": "Мои предметы (вкл/выкл)",
     "buyumlar": "Описание всех предметов",
     "mavsum": "Сезонный пропуск: уровень и награды",
+    "bonus": "Ежедневный бонус",
+    "vip": "VIP-подписка",
+    "taklif": "Пригласить друзей",
+    "premium": "Премиум группы (в группе)",
+    "turnir": "Турнир (в премиум-группе, для админов)",
     "send": "Отправить доллары другому пользователю",
     "sendgem": "Отправить алмазы другому пользователю",
     "profile": "Ваш профиль (баланс, статистика)",
@@ -981,3 +989,135 @@ SEASON_REMINDER = "⏳ До конца сезона {name} осталось {day
 SEASON_XP_LINE = "🎟 +{xp} XP · уровень {level}"
 SEASON_REWARDS_GOT = "🎁 Награды сезона: {rewards}"
 REWARD_ITEM = "{count} шт. {emoji} {name}"
+
+BONUS_CLAIMED = (
+    "🎁 <b>Ежедневный бонус — день {day}:</b> +{dollars}💵{extra}{vip}\n"
+    "Завтра день {next_day}: {next_dollars}. Если пропустить день, счёт начнётся с 1-го дня."
+)
+BONUS_EXTRA_DIAMONDS = " и +{diamonds}💎"
+BONUS_VIP_NOTE = " (👑 VIP: 💵 ×2)"
+BONUS_ALREADY = "🎁 Сегодняшний бонус уже получен (день {day}). Приходите завтра!"
+MENU_BONUS = "🎁 Ежедневный бонус"
+
+VIP_PERKS = (
+    "• 👑 рядом с именем (список, объявление о смерти, итоги игры, /top)\n"
+    "• 💵 ×2 в ежедневном бонусе (/bonus)\n"
+    "• каждый понедельник 1 бесплатная 🛡 Защита\n"
+    "• история последних 20 игр в /profile"
+)
+VIP_TEXT_ACTIVE = (
+    "👑 <b>VIP активен</b> — до {date}.\n\n{perks}\n\n"
+    "Telegram сам продлевает подписку каждые 30 дней. Отмена: настройки Telegram → Звёзды (Stars) → подписки."
+)
+VIP_TEXT_INACTIVE = "👑 <b>VIP-подписка</b> — {price}⭐ / 30 дней (Telegram продлевает сам).\n\n{perks}"
+VIP_BUY_BUTTON = "👑 VIP — {price}⭐ / 30 дней"
+VIP_INVOICE_TITLE = "👑 VIP-подписка"
+VIP_INVOICE_DESCRIPTION = "VIP на 30 дней: значок 👑, ежедневный бонус ×2, 🛡 Защита каждый понедельник, история игр."
+VIP_LINK_ERROR = "Не удалось создать ссылку VIP, попробуйте позже."
+VIP_ACTIVATED = "👑 VIP активирован! Действует до {date}."
+VIP_RENEWED = "👑 VIP-подписка продлена — до {date}."
+VIP_PAYMENT_ADMIN = "👑 Оплата VIP: {name} (id=<code>{user_id}</code>) — {stars}⭐\nID: <code>{charge_id}</code>"
+VIP_WEEKLY_GIFT = "👑 Подарок VIP: {count} шт. {emoji} {name} добавлено в сумку."
+MENU_VIP = "👑 VIP"
+PROFILE_VIP_LINE = "👑 VIP: до {date}"
+PROFILE_HISTORY_HEADER = "🕘 <b>Последние игры:</b>"
+PROFILE_HISTORY_WIN = "✅ победа"
+PROFILE_HISTORY_LOSS = "❌ поражение"
+PROFILE_HISTORY_AFK = "💤 AFK"
+PROFILE_HISTORY_EMPTY = "🕘 Истории игр пока нет."
+
+FIRST_PURCHASE_BONUS = "✨ Бонус первой покупки: алмазы ×{multiplier}!"
+SHOP_FIRST_PURCHASE_NOTE = "✨ При первой покупке за Stars алмазы ×{multiplier}!"
+SHOP_STARTER_INFO = "🌱 <b>Стартовый набор</b> (1 раз): {diamonds}💎, {items} и титул «{title}»."
+SHOP_STARTER_BUTTON = "🌱 Стартовый набор — {price}⭐"
+STARTER_INVOICE_TITLE = "🌱 Стартовый набор"
+STARTER_INVOICE_DESCRIPTION = "{diamonds}💎, {items} и титул «{title}». Один раз на аккаунт."
+STARTER_PACK_BOUGHT = "🌱 Стартовый набор выдан! ID платежа: <code>{charge_id}</code>"
+STARTER_NOT_AVAILABLE = "Стартовый набор только для тех, кто ещё ничего не покупал."
+SHOP_GIFT_BUTTON = "🎁 Подарить"
+GIFT_ASK_RECIPIENT = (
+    "🎁 Кому подарить? Отправьте ID получателя или его @username.\n"
+    "(Получатель должен был нажать /start у бота.)"
+)
+GIFT_RECIPIENT_NOT_FOUND = "Пользователь не найден — возможно, он ещё не нажимал /start у бота."
+MENU_INVITE = "🔗 Пригласить"
+GIFT_PRIVATE_ONLY = "🎁 Подарок оформляется в личном чате с ботом: /shop"
+GIFT_SELF = "Нельзя подарить самому себе — для себя покупайте в /shop."
+GIFT_CHOOSE_PACKAGE = "🎁 Выберите пакет алмазов для <b>{name}</b>:"
+GIFT_INVOICE_TITLE = "🎁 Подарок {diamonds}💎"
+GIFT_INVOICE_DESCRIPTION = "Подарок {diamonds}💎 для {name}. Будет доставлен сразу после оплаты."
+GIFT_SENT = "✅ {name} подарено {diamonds}💎! ID платежа: <code>{charge_id}</code>"
+GIFT_RECEIVED = "🎁 <b>{name}</b> подарил(а) вам {diamonds}💎!"
+
+REFERRAL_TEXT = (
+    "🔗 <b>Приглашайте друзей</b>\n\n"
+    "Ваша ссылка: {link}\n\n"
+    "Если друг придёт по ссылке и сделает первую покупку за Stars, вы получите +{diamonds}💎.\n"
+    "Приглашено: {count} · из них купили: {rewarded}"
+)
+REFERRAL_REWARD = "🔗 Приглашённый вами друг сделал первую покупку — +{diamonds}💎!"
+OWNER_SHARE_PAID = "🤝 Доля от покупок игроков вашей группы: +{diamonds}💎 зачислено на счёт."
+
+GROUP_PREMIUM_PERKS = (
+    "• каждый понедельник в 10:00 — недельная статистика группы\n"
+    "• титул «🏰 {name}» тем, кто сыграл в группе {games}+ игр\n"
+    "• /turnir — турниры с призом из алмазов админа"
+)
+GROUP_PREMIUM_ACTIVE = "🏰 <b>Премиум группы активен</b> — до {date}.\n\n{perks}"
+GROUP_PREMIUM_INACTIVE = (
+    "🏰 <b>Премиум группы</b> — {price}⭐ / 30 дней (Telegram продлевает сам, платит админ группы).\n\n{perks}"
+)
+GROUP_PREMIUM_LINK_SENT = "🏰 Ссылка на оплату отправлена вам в личный чат."
+GROUP_PREMIUM_BUTTON = "🏰 Премиум группы — {price}⭐ / 30 дней"
+GROUP_PREMIUM_INVOICE_TITLE = "🏰 Премиум группы"
+GROUP_PREMIUM_INVOICE_DESCRIPTION = "Премиум на 30 дней для группы «{chat}»: недельная статистика, титул группы, турниры."
+GROUP_PREMIUM_ACTIVATED = "🏰 Премиум группы активирован — до {date}."
+GROUP_PREMIUM_GROUP_NOTICE = "🏰 В этой группе включён премиум (до {date})! Доступны недельная статистика, титул группы и /turnir."
+GROUP_PREMIUM_REQUIRED = "Эта возможность работает только при активном премиуме группы: /premium"
+ADMIN_ONLY = "Это могут делать только админы группы."
+GROUP_ONLY = "Эта команда работает только в группе."
+START_BOT_PRIVATE = "Сначала нажмите /start у бота в личном чате: https://t.me/{bot}"
+GROUP_STATS_TEXT = (
+    "📊 <b>Статистика прошлой недели</b> ({since} — {until})\n\n"
+    "🎮 Всего игр: {games}\n"
+    "🏘 Победы мирных: {town}% · 🔪 Победы мафии: {mafia}%\n\n"
+    "🏆 <b>ТОП-{top_n} (по очкам):</b>\n{top}\n\n"
+    "🔥 <b>Самые активные:</b>\n{active}"
+)
+GROUP_STATS_TOP_LINE = "{place}. {name} — {points} очков"
+GROUP_STATS_ACTIVE_LINE = "{place}. {name} — {games} игр"
+GROUP_TITLE_GRANTED = "🏰 Вы сыграли {games} игр в группе «{chat}» — выдан титул «{title}»! /sumka → 🎨 Косметика"
+
+TOURNAMENT_CHOOSE_GAMES = "🏆 <b>Новый турнир</b>\nСколько игр? (засчитываются игры от {min_players} человек)"
+TOURNAMENT_GAMES_BUTTON = "{n} игр"
+TOURNAMENT_CHOOSE_PRIZE = "🏆 {games} игр. Какой приз? (спишется с вашего счёта)"
+TOURNAMENT_NOT_ENOUGH = "Недостаточно алмазов (нужно: {prize}💎)."
+TOURNAMENT_ALREADY = "В этой группе уже идёт турнир."
+TOURNAMENT_STARTED = (
+    "🏆 <b>Объявлен турнир!</b>\n"
+    "Следующие {games} игр (от {min_players} человек) — турнирные. Приз: {prize}💎 "
+    "(1-е место {p1}%, 2-е {p2}%, 3-е {p3}%).\n"
+    "Очки: победа {win}, выживание до конца +{alive}, лучшие {mvp_top} по MVP в игре +{mvp}.\n"
+    "Вход бесплатный. Если турнир не завершится за {hours} ч., он закончится по текущим результатам."
+)
+TOURNAMENT_STATUS = "🏆 <b>Идёт турнир</b>: {played}/{games} игр, приз {prize}💎\n\n{table}"
+TOURNAMENT_CANCEL_BUTTON = "❌ Отменить турнир"
+TOURNAMENT_CANCELLED = "🏆 Турнир отменён, {prize}💎 возвращено админу."
+TOURNAMENT_CANNOT_CANCEL = "Турнир можно отменить только до начала первой игры."
+TOURNAMENT_TABLE_HEADER = "🏆 <b>Турнирная таблица</b> ({played}/{games}):"
+TOURNAMENT_TABLE_LINE = "{place}. {name} — {points} очк. ({wins} поб.)"
+TOURNAMENT_TABLE_EMPTY = "результатов пока нет"
+TOURNAMENT_FINISHED = "🏆 <b>Турнир завершён!</b>\n{winners}"
+TOURNAMENT_WINNER_LINE = "{place}-е место: {name} — +{prize}💎"
+TOURNAMENT_NO_WINNERS = "Участников не было — приз возвращён админу."
+TOURNAMENT_PRIZE_PRIVATE = "🏆 {place}-е место в турнире! +{prize}💎 зачислено на счёт."
+
+SETTINGS_BTN_GROUP_NAME = "🏰 Название титула группы: {name}"
+SETTINGS_ASK_GROUP_NAME = "🏰 Напишите короткое название для титула группы (до {max} символов). Ответьте (reply) на это сообщение."
+SETTINGS_GROUP_NAME_SAVED = "✅ Титул группы: «🏰 {name}»."
+SETTINGS_GROUP_NAME_DEFAULT = "название группы"
+SETTINGS_BTN_SHARE = "🤝 Получатель доли: {name}"
+SETTINGS_SHARE_TITLE = "🤝 <b>Доля владельца группы</b>\n{percent}% от покупок игроков за Stars копятся этому человеку. Менять может только создатель группы."
+SETTINGS_SHARE_CREATOR_ONLY = "Получателя доли может менять только создатель группы."
+SETTINGS_SHARE_SET = "✅ Получатель доли: {name}"
+SETTINGS_SHARE_CREATOR = "создатель группы"

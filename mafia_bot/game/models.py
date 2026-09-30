@@ -57,6 +57,8 @@ class Player:
     # Faol kosmetika (ro'yxatga qo'shilganda yuklanadi): unvon va o'lim uslubi.
     title_key: str | None = None
     death_key: str | None = None
+    # 👑 VIP (ro'yxatga qo'shilganda aniqlanadi) — faqat belgi.
+    vip: bool = False
     hero_level: int = 0
     # O'yin boshidagi rol (statistika uchun; Bo'ri/Serjant keyin rolini o'zgartirishi mumkin).
     initial_role: Role | None = None

@@ -7,6 +7,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 import cosmetics
 import db
+import vip
 from economy import WEEKLY_REWARD_DIAMONDS
 from i18n import texts_for_user
 
@@ -33,6 +34,8 @@ async def pay_last_week(bot: Bot) -> bool:
             )
         except (TelegramForbiddenError, TelegramBadRequest):
             pass
+    # 👑 VIP'larga har dushanba bepul buyum (bir hafta uchun bir marta).
+    await vip.give_weekly_items(bot, this_week)
     if awards:
         # /top7 1-o'rin egasiga bir haftalik "🏆 Hafta chempioni" unvoni.
         champion_id = awards[0][0]

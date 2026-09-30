@@ -44,7 +44,14 @@ def build_main_menu_keyboard(bot_username: str, L=texts) -> InlineKeyboardMarkup
                 InlineKeyboardButton(text=L.MENU_SEND_DOLLAR, callback_data="menu:send_dollar"),
                 InlineKeyboardButton(text=L.MENU_SEND_DIAMOND, callback_data="menu:send_diamond"),
             ],
-            [InlineKeyboardButton(text=L.MENU_EXCHANGE_BUTTON, callback_data="menu:exchange")],
+            [
+                InlineKeyboardButton(text=L.MENU_EXCHANGE_BUTTON, callback_data="menu:exchange"),
+                InlineKeyboardButton(text=L.MENU_INVITE, callback_data="menu:invite"),
+            ],
+            [
+                InlineKeyboardButton(text=L.MENU_BONUS, callback_data="menu:bonus"),
+                InlineKeyboardButton(text=L.MENU_VIP, callback_data="menu:vip"),
+            ],
             [
                 InlineKeyboardButton(text=L.MENU_HELP, callback_data="menu:help"),
                 InlineKeyboardButton(text=L.MENU_LANGUAGE, callback_data="lang:menu"),
@@ -91,7 +98,7 @@ async def on_market(callback: CallbackQuery, UL=texts) -> None:
 async def on_shop(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    text, kb = shop.shop_view(UL)
+    text, kb = await shop.user_shop_view(callback.from_user.id, UL)
     await callback.message.answer(text, reply_markup=_with_back(kb, UL))
 
 

@@ -29,7 +29,7 @@ def _gl(game: Game):
 def build_lobby_text(game: Game) -> str:
     L = _gl(game)
     names = ", ".join(
-        cosmetics.display_name(mention(p), L, p.title_key, p.hero_badge) for p in game.players.values()
+        cosmetics.display_name(mention(p), L, p.title_key, p.hero_badge, p.vip) for p in game.players.values()
     ) or "—"
     return _gl(game).LOBBY_TEXT.format(
         brand=esc(BRAND_NAME), names=names, count=len(game.players), min_players=game.settings.min_players
@@ -117,7 +117,7 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
     game.players[user.id] = Player(
         user_id=user.id, full_name=user.full_name, username=user.username, lang=lang,
         hero_badge=await db.get_hero_level(user.id),
-        title_key=active.get(TITLE), death_key=active.get(DEATH_STYLE),
+        title_key=active.get(TITLE), death_key=active.get(DEATH_STYLE), vip=await db.is_vip(user.id),
     )
     manager.register_player(game, user.id)
     return True
@@ -328,6 +328,8 @@ async def _group_url(bot: Bot, chat_id: int) -> str | None:
     url = None
     try:
         chat = await bot.get_chat(chat_id)
+        if chat.title:
+            await db.set_group_title(chat_id, chat.title)  # 🏰 guruh unvoni uchun standart nom
         if chat.username:
             url = f"https://t.me/{chat.username}"
         else:

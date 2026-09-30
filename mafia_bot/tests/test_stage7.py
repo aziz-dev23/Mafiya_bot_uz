@@ -218,5 +218,97 @@ class DeathStyleInGameTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("edi", engine._styled_death(game, game.players[2]))
 
 
+
+class DailyBonusTest(DbCase):
+    def day(self, n):
+        return datetime(2026, 10, 1 + n, 9, 0, tzinfo=season.TZ)
+
+    async def test_streak_and_reset(self):
+        import bonus
+
+        got = []
+        for n in range(8):
+            r = await bonus.claim(1, now=self.day(n))
+            got.append((r["day"], r["dollars"], r["diamonds"]))
+        self.assertEqual(got[0], (1, 20, 0))
+        self.assertEqual(got[1], (2, 30, 0))
+        self.assertEqual(got[6], (7, 80, 1))
+        self.assertEqual(got[7], (1, 20, 0))  # 7-kundan keyin yana 1-kun
+        self.assertFalse((await bonus.claim(1, now=self.day(7)))["ok"])  # bugun ikkinchi marta
+        r = await bonus.claim(1, now=self.day(9))  # 1 kun o'tkazib yuborildi
+        self.assertEqual(r["day"], 1)
+        dollars, _, diamonds = await self.balance(1)
+        self.assertEqual((dollars, diamonds), (20 + 30 + 40 + 50 + 60 + 70 + 80 + 20 + 20, 1))
+
+    async def test_vip_doubles_dollars_only(self):
+        import bonus
+
+        await db.set_vip_until(1, int(time.time()) + 3600, "ch")
+        r = await bonus.claim(1, now=self.day(0))
+        self.assertEqual((r["dollars"], r["diamonds"], r["vip"]), (40, 0, True))
+
+
+def vip_payment_message(user_id, charge_id, first=True, amount=100):
+    m = MagicMock()
+    m.from_user.id = user_id
+    m.from_user.full_name = "Ali"
+    m.from_user.username = None
+    m.answer = AsyncMock()
+    p = m.successful_payment
+    p.telegram_payment_charge_id = charge_id
+    p.invoice_payload = f"vip:{user_id}"
+    p.currency = "XTR"
+    p.total_amount = amount
+    p.subscription_expiration_date = int(time.time()) + 30 * 86400
+    p.is_recurring = True
+    p.is_first_recurring = first
+    return m
+
+
+class VipTest(DbCase):
+    async def test_payment_renewal_and_refund(self):
+        from handlers import stars
+
+        bot = MagicMock(send_message=AsyncMock(), refund_star_payment=AsyncMock())
+        await stars.on_successful_payment(vip_payment_message(1, "v1"), bot)
+        await stars.on_successful_payment(vip_payment_message(1, "v1"), bot)  # takroriy update
+        self.assertTrue(await db.is_vip(1))
+        renewal = vip_payment_message(1, "v2", first=False)
+        renewal.successful_payment.subscription_expiration_date = int(time.time()) + 60 * 86400
+        await stars.on_successful_payment(renewal, bot)
+        self.assertGreater(await db.vip_until(1), time.time() + 59 * 86400)
+        self.assertIn("✅", await stars.refund_payment(bot, "v2", force=False))
+        self.assertFalse(await db.is_vip(1))
+
+    async def test_wrong_amount_rejected(self):
+        from handlers import stars
+
+        self.assertFalse(stars.validate_vip("vip:1", "XTR", 99, 1))
+        self.assertFalse(stars.validate_vip("vip:1", "XTR", 100, 2))
+        self.assertTrue(stars.validate_vip("vip:1", "XTR", 100, 1))
+
+    async def test_weekly_item_once(self):
+        import vip
+
+        await db.set_vip_until(1, int(time.time()) + 3600, "ch")
+        bot = make_bot()
+        self.assertEqual(await vip.give_weekly_items(bot, 1000), 1)
+        self.assertEqual(await vip.give_weekly_items(bot, 1000), 0)
+        self.assertEqual(await db.item_count(1, "shield"), 1)
+
+    async def test_history_in_profile_only_for_vip(self):
+        from handlers import admin
+
+        game_id = await db.log_game(-1, "town", 8)
+        await db.log_player_game(game_id, 1, -1, "doctor", True, True, False, 10)
+        text, _ = await admin.build_profile_view(1, "Ali")
+        self.assertNotIn(texts.PROFILE_HISTORY_HEADER, text)
+        await db.set_vip_until(1, int(time.time()) + 3600, "ch")
+        text, _ = await admin.build_profile_view(1, "Ali")
+        self.assertIn(texts.PROFILE_HISTORY_HEADER, text)
+        self.assertIn(texts.ROLE_NAMES[Role.DOCTOR], text)
+        self.assertIn("👑", text)
+
+
 if __name__ == "__main__":
     unittest.main()

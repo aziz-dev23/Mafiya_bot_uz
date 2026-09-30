@@ -46,11 +46,12 @@ class PreCheckoutTest(unittest.IsolatedAsyncioTestCase):
     async def test_answers(self):
         q = MagicMock(invoice_payload=stars.build_payload(1, 7), currency="XTR", total_amount=5, answer=AsyncMock())
         q.from_user.id = 7
-        await stars.on_pre_checkout(q)
+        bot = MagicMock(get_chat_member=AsyncMock())
+        await stars.on_pre_checkout(q, bot)
         q.answer.assert_awaited_once_with(ok=True)
         q.total_amount = 1
         q.answer.reset_mock()
-        await stars.on_pre_checkout(q)
+        await stars.on_pre_checkout(q, bot)
         self.assertFalse(q.answer.await_args.kwargs["ok"])
 
 
@@ -101,10 +102,10 @@ class PaymentFlowTest(unittest.IsolatedAsyncioTestCase):
         m = payment_message(1, 10, "ch_1")
         await stars.on_successful_payment(m, self.bot)
         await stars.on_successful_payment(m, self.bot)  # Telegram update'ni qayta yubordi
-        self.assertEqual(await self.diamonds(1), 10)
+        self.assertEqual(await self.diamonds(1), 20)  # ✨ birinchi Stars xaridi ×2
         self.assertEqual(m.answer.await_count, 1)
         row = await db.get_star_payment("ch_1")
-        self.assertEqual((row["user_id"], row["diamonds"], row["stars"], row["status"]), (1, 10, 50, "paid"))
+        self.assertEqual((row["user_id"], row["diamonds"], row["stars"], row["status"]), (1, 20, 50, "paid"))
 
     async def test_bad_payment_not_credited(self):
         m = payment_message(1, 10, "ch_bad", stars_amount=1)
@@ -141,7 +142,7 @@ class PaymentFlowTest(unittest.IsolatedAsyncioTestCase):
         self.bot.refund_star_payment = AsyncMock(side_effect=TelegramBadRequest(MagicMock(), "CHARGE_ALREADY_REFUNDED"))
         result = await stars.refund_payment(self.bot, "ch_4", force=False)
         self.assertIn("❌", result)
-        self.assertEqual(await self.diamonds(1), 10)
+        self.assertEqual(await self.diamonds(1), 20)
         self.assertEqual((await db.get_star_payment("ch_4"))["status"], "paid")
 
     async def test_external_refund_takes_diamonds(self):

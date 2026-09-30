@@ -24,7 +24,7 @@ class PayoutTest(unittest.IsolatedAsyncioTestCase):
     async def _payout(self, game, winner):
         with patch.multiple(
             "economy.db", add_balance=AsyncMock(), record_game_result=AsyncMock(), add_points=AsyncMock(),
-            record_role_result=AsyncMock(),
+            record_role_result=AsyncMock(), log_game=AsyncMock(return_value=1), log_player_game=AsyncMock(), is_group_premium=AsyncMock(return_value=False),
         ):
             await economy.payout_game_results(game, winner)
             dollars = {c.args[0]: c.kwargs["dollars"] for c in economy.db.add_balance.await_args_list}

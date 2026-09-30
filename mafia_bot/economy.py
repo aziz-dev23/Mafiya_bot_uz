@@ -115,6 +115,67 @@ WEEKLY_REWARD_DIAMONDS = (10, 5, 3)
 TRANSFER_MIN_GAMES = 20
 TRANSFER_DAILY_LIMITS = {"dollar": 5000, "diamond": 50}
 
+# ---------- 🎁 Kunlik bonus (/bonus) ----------
+# N-kun: DAILY_BONUS_FIRST + (N-1) × DAILY_BONUS_STEP dollar; oxirgi kunda qo'shimcha olmos.
+# Kun o'tkazib yuborilsa yoki oxirgi kundan keyin hisob yana 1-kundan boshlanadi (Toshkent kuni).
+DAILY_BONUS_FIRST = 20
+DAILY_BONUS_STEP = 10
+DAILY_BONUS_DAYS = 7
+DAILY_BONUS_LAST_DAY_DIAMONDS = 1
+
+# ---------- 👑 VIP obuna (Telegram Stars, har 30 kunda avtomatik yangilanadi) ----------
+VIP_PRICE_STARS = 100
+VIP_PERIOD_SECONDS = 2592000  # Telegram Stars obunasi uchun yagona ruxsat etilgan muddat (30 kun)
+VIP_DAILY_BONUS_MULTIPLIER = 2
+# Har dushanba VIP'larga beriladigan bepul buyum (faqat REWARDABLE_ITEMS dan bo'lishi mumkin).
+VIP_WEEKLY_ITEM = ("shield", 1)
+VIP_HISTORY_GAMES = 20
+
+# ---------- Pullik to'plamlar va mukofotlar ----------
+# Qoida: to'plamlar, mavsum va VIP faqat 💵 ga sotiladigan arzon buyumlarni (🛡, 💊, 🎭) berishi mumkin;
+# 💎 buyumlar (⚖️, 🔫, 🔮, ⛑, 🔰) va Geroy hech qanday to'plam yoki mukofotda berilmaydi.
+REWARDABLE_ITEMS = ("shield", "poison_shield", "mask")
+
+# 🌱 Boshlang'ich to'plam — har akkauntga 1 marta, faqat hech qachon xarid qilmaganlarga (karta ham hisobga olinadi).
+STARTER_PACK_PRICE_STARS = 50
+STARTER_PACK_DIAMONDS = 10
+STARTER_PACK_ITEMS = (("shield", 3),)
+STARTER_PACK_TITLE = "newcomer"
+
+# ✨ Birinchi Stars olmos paketi xaridida olmos shuncha barobar beriladi (sovg'a va to'plamga tegishli emas).
+FIRST_PURCHASE_MULTIPLIER = 2
+
+# 🤝 Guruh egasiga (yaratuvchi yoki u tayinlagan admin) o'yinchining Stars xaridi olmosidan ulush (foiz).
+# Ulush kasr bilan yig'iladi va butun 1💎 bo'lganda hisobga tushadi.
+OWNER_SHARE_PERCENT = 10
+
+# 🔗 Taklif qilingan do'st birinchi Stars xaridini qilganda taklif qilganga beriladigan olmos.
+REFERRAL_REWARD_DIAMONDS = 5
+
+# 🏰 Guruh premiumi — 30 kunlik Stars obunasi, guruh admini to'laydi.
+GROUP_PREMIUM_PRICE_STARS = 300
+# Haftalik statistika: dushanba (0) shu soatda (Toshkent), o'tgan hafta (Du–Ya) bo'yicha.
+GROUP_STATS_WEEKDAY = 0
+GROUP_STATS_HOUR = 10
+GROUP_STATS_TOP = 10
+GROUP_STATS_ACTIVE = 3
+# Shu guruhda shuncha o'yin o'ynaganlarga "🏰 <nom>" unvoni.
+GROUP_TITLE_GAMES = 50
+GROUP_TITLE_NAME_MAX = 14
+
+# 🏆 Turnir (/turnir, faqat premium guruhlarda, faqat adminlar).
+TOURNAMENT_GAME_OPTIONS = (3, 5, 10)
+TOURNAMENT_PRIZE_OPTIONS = (10, 20, 50, 100)
+TOURNAMENT_MIN_PRIZE = 10
+TOURNAMENT_MIN_PLAYERS = 6
+TOURNAMENT_POINTS_WIN = 3
+TOURNAMENT_POINTS_ALIVE = 1
+TOURNAMENT_POINTS_MVP = 2
+TOURNAMENT_MVP_TOP = 3
+TOURNAMENT_PRIZE_SPLIT = (50, 30, 20)  # 1-, 2-, 3-o'rin foizi; qoldiq adminga qaytadi
+TOURNAMENT_TIMEOUT_HOURS = 48
+TOURNAMENT_TABLE_SIZE = 5
+
 # ---------- 🎨 Kosmetika (doimiy, o'yinga ta'sir qilmaydi) ----------
 # Turlar: unvon (ism oldidan), o'lim uslubi (guruhdagi o'lim xabari), profil ramkasi (/profile bezagi).
 # Har turdan bir vaqtda bittasi faol. price=None — do'konda sotilmaydi (to'plam, mavsum, guruh, chempion).
@@ -278,6 +339,8 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
     faqat o'sha o'yinchining o'ziga yuboriladi."""
     private_messages: list[tuple[int, str]] = []
     top_bonus_ids = _top_bonus_ids(game, winner)
+    # O'yinlar jurnali: VIP tarixi va guruh statistikasi (guruh premiumi) uchun.
+    game_id = await db.log_game(game.chat_id, winner, len(game.players))
 
     for p in game.players.values():
         L = get_texts(p.lang)
@@ -286,6 +349,7 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
         if p.afk:
             await db.record_game_result(p.user_id, False)
             await db.record_role_result(p.user_id, stats_role, False)
+            await db.log_player_game(game_id, p.user_id, game.chat_id, stats_role, False, p.alive, True, 0)
             role_line = L.PAYOUT_ROLE_LINE.format(role=L.ROLE_NAMES[p.role], status=L.PAYOUT_DEAD)
             private_messages.append((p.user_id, f"{role_line}\n\n{L.PAYOUT_AFK}"))
             continue
@@ -313,6 +377,7 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
         await db.record_game_result(p.user_id, won)
         await db.record_role_result(p.user_id, stats_role, won)
         await db.add_points(p.user_id, points)
+        await db.log_player_game(game_id, p.user_id, game.chat_id, stats_role, won, p.alive, False, points)
 
         if won and winner == "killer":
             outcome_line = L.PAYOUT_KILLER_SOLO

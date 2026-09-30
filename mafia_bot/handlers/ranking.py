@@ -19,7 +19,9 @@ async def _reply_top(message: Message, L, title: str, since: int | None) -> None
     lines = [title, ""]
     for i, row in enumerate(rows, 1):
         title = (await cosmetics.active(row["user_id"])).get(TITLE)
-        name = cosmetics.display_name(esc(row["full_name"]), L, title, row["hero_level"])
+        name = cosmetics.display_name(
+            esc(row["full_name"]), L, title, row["hero_level"], await db.is_vip(row["user_id"])
+        )
         lines.append(L.TOP_LINE.format(place=i, name=name, total=row["total"]))
     # Foydalanuvchi TOP-10 da bo'lmasa, oxirida uning o'z o'rni ko'rsatiladi.
     user_id = message.from_user.id if message.from_user else None
