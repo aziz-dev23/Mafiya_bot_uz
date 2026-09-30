@@ -6,8 +6,8 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 import db
-import texts
 from economy import WEEKLY_REWARD_DIAMONDS
+from i18n import texts_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,9 @@ async def pay_last_week(bot: Bot) -> bool:
 
     for place, (row, (user_id, diamonds)) in enumerate(zip(rows, awards), 1):
         try:
+            L = await texts_for_user(user_id)
             await bot.send_message(
-                user_id, texts.WEEKLY_REWARD_MESSAGE.format(place=place, points=row["total"], diamonds=diamonds)
+                user_id, L.WEEKLY_REWARD_MESSAGE.format(place=place, points=row["total"], diamonds=diamonds)
             )
         except (TelegramForbiddenError, TelegramBadRequest):
             pass

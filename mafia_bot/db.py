@@ -138,9 +138,19 @@ async def _migrate_killer_shield_x10() -> None:
     await _conn.execute("UPDATE inventory SET count = count * 10 WHERE item_key = 'killer_shield' AND count > 0")
 
 
+async def _migrate_users_lang() -> None:
+    """Foydalanuvchi tili ustuni (i18n). Mavjud foydalanuvchilar uchun — o'zbekcha (lotin)."""
+    cur = await _conn.execute("PRAGMA table_info(users)")
+    cols = [row["name"] for row in await cur.fetchall()]
+    await cur.close()
+    if "lang" not in cols:
+        await _conn.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'uz'")
+
+
 # Tartib muhim: yangi migratsiyalar faqat ro'yxat oxiriga qo'shiladi.
 _MIGRATIONS = (
     ("2026_09_killer_shield_x10", _migrate_killer_shield_x10),
+    ("2026_10_users_lang", _migrate_users_lang),
 )
 
 
@@ -648,3 +658,8 @@ async def take_diamonds(user_id: int, amount: int, allow_partial: bool) -> int |
     if available and not await spend_balance(user_id, "diamonds", available):
         return 0
     return available
+
+
+async def set_user_lang(user_id: int, lang: str) -> None:
+    await _conn.execute("UPDATE users SET lang = ? WHERE user_id = ?", (lang, user_id))
+    await _conn.commit()

@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+# Ro'yxat xabaridagi o'yin nomi (hech bir tilga o'girilmaydi).
+BRAND_NAME = os.getenv("BRAND_NAME", "Mafiya Gamer's")
 MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", "4"))
 MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", "40"))
 NIGHT_DURATION = int(os.getenv("NIGHT_DURATION", "45"))

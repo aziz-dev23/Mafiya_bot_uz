@@ -8,50 +8,46 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 import db
 import texts
-from config import LOBBY_EDIT_INTERVAL, NEWBIE_GAMES
+from config import BRAND_NAME, LOBBY_EDIT_INTERVAL, NEWBIE_GAMES
 from economy import ITEM_MAX_USES_PER_GAME, MAFIA_TEAM_ROLES
 from game.engine import run_game
 from game.manager import manager
 from game.models import Game, GameState, Player, Role
 from game.roles import assign_roles
 from game.settings import load_settings
-from texts import ROLE_DESCRIPTIONS, ROLE_NAMES
+from i18n import get_texts, user_lang
 from utils import esc, mention
 
 router = Router(name="lobby")
 
 
+def _gl(game: Game):
+    return get_texts(game.settings.lang)
+
+
 def build_lobby_text(game: Game) -> str:
     names = ", ".join(mention(p) for p in game.players.values()) or "—"
-    lines = [
-        "🎭 <b>Mafiya Gamer's</b>",
-        "",
-        "<b>Ro'yxatdan o'tish boshlandi</b>",
-        "",
-        "Ro'yxatdan o'tganlar:",
-        names,
-        "",
-        f"Jami {len(game.players)}ta odam. (kamida {game.settings.min_players} kerak)",
-        "",
-        "▶️ Boshlash tugmasini faqat o'yin egasi yoki guruh adminlari bosa oladi.",
-    ]
-    return "\n".join(lines)
+    return _gl(game).LOBBY_TEXT.format(
+        brand=esc(BRAND_NAME), names=names, count=len(game.players), min_players=game.settings.min_players
+    )
 
 
-def build_lobby_keyboard() -> InlineKeyboardMarkup:
+def build_lobby_keyboard(game: Game) -> InlineKeyboardMarkup:
+    L = _gl(game)
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🤵‍♂️🤵‍♀️ Qo'shilish", callback_data="lobby:join"),
-                InlineKeyboardButton(text=texts.LOBBY_LEAVE_BUTTON, callback_data="lobby:leave"),
+                InlineKeyboardButton(text=L.LOBBY_JOIN_BUTTON, callback_data="lobby:join"),
+                InlineKeyboardButton(text=L.LOBBY_LEAVE_BUTTON, callback_data="lobby:leave"),
             ],
-            [InlineKeyboardButton(text="▶️ Boshlash", callback_data="lobby:start_now")],
+            [InlineKeyboardButton(text=L.LOBBY_START_BUTTON, callback_data="lobby:start_now")],
         ]
     )
 
 
 def build_role_message(player: Player, game: Game) -> str:
-    lines = [f"🎭 Sizning rolingiz: <b>{ROLE_NAMES[player.role]}</b>", "", ROLE_DESCRIPTIONS[player.role]]
+    L = get_texts(player.lang)
+    lines = [L.ROLE_YOURS.format(role=L.ROLE_NAMES[player.role]), "", L.ROLE_DESCRIPTIONS[player.role]]
     if player.role in MAFIA_TEAM_ROLES:
         teammates = [
             esc(p.full_name)
@@ -60,37 +56,35 @@ def build_role_message(player: Player, game: Game) -> str:
         ]
         if teammates:
             lines.append("")
-            lines.append("Sherik mafiyalar: " + ", ".join(teammates))
+            lines.append(L.TEAMMATES_LINE.format(names=", ".join(teammates)))
     if player.role == Role.SERGEANT:
         detective = next((p for p in game.players.values() if p.role == Role.DETECTIVE), None)
         if detective:
             lines.append("")
-            lines.append(texts.SERGEANT_KNOWS.format(name=esc(detective.full_name)))
+            lines.append(L.SERGEANT_KNOWS.format(name=esc(detective.full_name)))
     if player.role == Role.HITMAN and player.contract_target is not None:
         target = game.players.get(player.contract_target)
         if target:
             lines.append("")
-            lines.append(f"🎯 Sizning maxfiy buyurtma nishoningiz: <b>{esc(target.full_name)}</b>")
-    if player.role in texts.ROLE_TIPS:
+            lines.append(L.HITMAN_CONTRACT_LINE.format(name=esc(target.full_name)))
+    if player.role in L.ROLE_TIPS:
         lines.append("")
-        lines.append(texts.ROLE_TIP_PREFIX + texts.ROLE_TIPS[player.role])
+        lines.append(L.ROLE_TIP_PREFIX + L.ROLE_TIPS[player.role])
     if player.games_played < NEWBIE_GAMES:
         lines.append("")
-        lines.append(texts.NEWBIE_TIPS)
+        lines.append(L.NEWBIE_TIPS)
     return "\n".join(lines)
 
 
 async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
     if user.id in game.players:
         return True
+    lang = await user_lang(user.id)
     try:
         # Shaxsiy xabar yuborish shart — shu orqali bot ushbu foydalanuvchiga yoza olishini
         # tekshiramiz. Lekin "qo'shildingiz" degan alohida xabarni chatda qoldirmaymiz —
         # o'yinchi faqat o'yin boshlanganda o'z rolini ko'rishi kerak.
-        probe = await bot.send_message(
-            user.id,
-            "✅ Siz Mafiya o'yiniga qo'shildingiz! O'yin boshlanganda rolingiz shu yerga yuboriladi.",
-        )
+        probe = await bot.send_message(user.id, get_texts(lang).JOIN_PROBE)
     except (TelegramForbiddenError, TelegramBadRequest):
         return False
 
@@ -101,18 +95,18 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
 
     await db.ensure_user(user.id, user.full_name, user.username)
 
-    game.players[user.id] = Player(user_id=user.id, full_name=user.full_name, username=user.username)
+    game.players[user.id] = Player(user_id=user.id, full_name=user.full_name, username=user.username, lang=lang)
     manager.register_player(game, user.id)
     return True
 
 
-async def _open_new_game(message: Message, bot: Bot) -> None:
+async def _open_new_game(message: Message, bot: Bot, L) -> None:
     if manager.get_game(message.chat.id):
-        await message.answer("Bu guruhda allaqachon o'yin ketyapti yoki ro'yxat ochiq.")
+        await message.answer(L.GAME_ALREADY_RUNNING)
         return
 
     if manager.get_game_by_player(message.from_user.id):
-        await message.answer("Siz allaqachon boshqa o'yinda ishtirok etyapsiz.")
+        await message.answer(L.IN_OTHER_GAME)
         return
 
     await open_lobby(bot, message.chat.id, message.from_user)
@@ -125,14 +119,10 @@ async def open_lobby(bot: Bot, chat_id: int, host: User | None = None) -> Game |
     if host is not None and not await try_register_player(bot, game, host):
         manager.remove_game(chat_id)
         me = await bot.get_me()
-        await bot.send_message(
-            chat_id,
-            "Avval botga shaxsiy xabar yozib, /start bosing, so'ng qayta urinib ko'ring: "
-            f"https://t.me/{me.username}",
-        )
+        await bot.send_message(chat_id, _gl(game).START_BOT_FIRST.format(bot=me.username))
         return None
 
-    msg = await bot.send_message(chat_id, build_lobby_text(game), reply_markup=build_lobby_keyboard())
+    msg = await bot.send_message(chat_id, build_lobby_text(game), reply_markup=build_lobby_keyboard(game))
     game.lobby_message_id = msg.message_id
     game.lobby_last_edit = time.monotonic()
     try:
@@ -153,32 +143,29 @@ async def _unpin_lobby(bot: Bot, game: Game) -> None:
 
 
 @router.message(Command("mafia", "yangi_oyin"))
-async def cmd_new_game(message: Message, bot: Bot) -> None:
+async def cmd_new_game(message: Message, bot: Bot, L=texts) -> None:
     if message.chat.type not in ("group", "supergroup"):
-        await message.answer("Bu buyruq faqat guruhda ishlaydi. Botni guruhga qo'shing va shu yerda ishga tushiring.")
+        await message.answer(L.GROUP_ONLY_COMMAND)
         return
-    await _open_new_game(message, bot)
+    await _open_new_game(message, bot, L)
 
 
 @router.message(CommandStart(), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_start_group(message: Message, bot: Bot) -> None:
+async def cmd_start_group(message: Message, bot: Bot, L=texts) -> None:
     game = manager.get_game(message.chat.id)
     if not game:
-        await _open_new_game(message, bot)
+        await _open_new_game(message, bot, L)
         return
 
     if game.state != GameState.LOBBY:
-        await message.answer("Bu guruhda o'yin allaqachon boshlangan. U tugagach /start bosib yangisini oching.")
+        await message.answer(L.GAME_ALREADY_STARTED)
         return
 
     if message.from_user.id in game.players:
-        await message.answer("Siz allaqachon ro'yxatdasiz. O'yin tez orada boshlanadi!")
+        await message.answer(L.ALREADY_REGISTERED)
         return
 
-    await message.answer(
-        "🎮 Bu guruhda o'yin ro'yxati ochiq! Qo'shilish uchun tugmani bosing:",
-        reply_markup=build_lobby_keyboard(),
-    )
+    await message.answer(L.LOBBY_OPEN_JOIN, reply_markup=build_lobby_keyboard(game))
 
 
 async def _is_chat_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
@@ -190,35 +177,35 @@ async def _is_chat_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
 
 
 @router.message(Command("stop"))
-async def cmd_stop(message: Message, bot: Bot) -> None:
+async def cmd_stop(message: Message, bot: Bot, L=texts) -> None:
     game = manager.get_game(message.chat.id)
     if not game:
-        await message.answer("Bu guruhda faol o'yin yo'q.")
+        await message.answer(L.NO_ACTIVE_GAME)
         return
     if not await _is_chat_admin(bot, message.chat.id, message.from_user.id):
-        await message.answer("Faqat guruh adminlari o'yinni to'xtata oladi.")
+        await message.answer(L.STOP_ADMIN_ONLY)
         return
     manager.remove_game(message.chat.id)
     if game.state == GameState.LOBBY:
         await _unpin_lobby(bot, game)
-    await message.answer("🛑 O'yin to'xtatildi.")
+    await message.answer(L.GAME_STOPPED)
 
 
 @router.callback_query(F.data == "lobby:join")
-async def on_join(callback: CallbackQuery, bot: Bot) -> None:
+async def on_join(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     game = manager.get_game(callback.message.chat.id)
     if not game or game.state != GameState.LOBBY:
-        await callback.answer("Ro'yxat yopiq.", show_alert=True)
+        await callback.answer(UL.LOBBY_CLOSED, show_alert=True)
         return
     if callback.from_user.id in game.players:
-        await callback.answer("Siz allaqachon qo'shilgansiz.")
+        await callback.answer(UL.ALREADY_JOINED)
         return
     if len(game.players) >= game.settings.max_players:
-        await callback.answer("Ro'yxat to'lgan.", show_alert=True)
+        await callback.answer(UL.LOBBY_FULL, show_alert=True)
         return
     other_game = manager.get_game_by_player(callback.from_user.id)
     if other_game:
-        await callback.answer("Siz boshqa o'yinda ishtirok etyapsiz.", show_alert=True)
+        await callback.answer(UL.IN_OTHER_GAME_SHORT, show_alert=True)
         return
 
     ok = await try_register_player(bot, game, callback.from_user)
@@ -229,41 +216,41 @@ async def on_join(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer(url=f"https://t.me/{me.username}?start=join_{game.chat_id}")
         return
 
-    await callback.answer("Qo'shildingiz! ✅")
+    await callback.answer(UL.JOINED)
     schedule_lobby_edit(bot, game)
 
 
 @router.callback_query(F.data == "lobby:leave")
-async def on_leave(callback: CallbackQuery, bot: Bot) -> None:
+async def on_leave(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     game = manager.get_game(callback.message.chat.id)
     if not game or game.state != GameState.LOBBY or game.starting:
-        await callback.answer("Ro'yxat yopiq.", show_alert=True)
+        await callback.answer(UL.LOBBY_CLOSED, show_alert=True)
         return
     if callback.from_user.id not in game.players:
-        await callback.answer(texts.LOBBY_NOT_IN)
+        await callback.answer(UL.LOBBY_NOT_IN)
         return
     del game.players[callback.from_user.id]
     manager.unregister_player(game, callback.from_user.id)
-    await callback.answer(texts.LOBBY_LEFT)
+    await callback.answer(UL.LOBBY_LEFT)
     schedule_lobby_edit(bot, game)
 
 
-async def join_from_deeplink(bot: Bot, user: User, chat_id: int) -> str:
+async def join_from_deeplink(bot: Bot, user: User, chat_id: int, L=texts) -> str:
     """/start join_<chat_id> — "Qo'shilish"ni bosgan, lekin botga hali yozmagan odam shu yerga keladi."""
     game = manager.get_game(chat_id)
     if not game or game.state != GameState.LOBBY or game.starting:
-        return texts.JOIN_VIA_START_CLOSED
+        return L.JOIN_VIA_START_CLOSED
     if user.id in game.players:
-        return texts.JOIN_VIA_START_OK
+        return L.JOIN_VIA_START_OK
     other = manager.get_game_by_player(user.id)
     if other is not None:
-        return texts.JOIN_VIA_START_OTHER_GAME
+        return L.JOIN_VIA_START_OTHER_GAME
     if len(game.players) >= game.settings.max_players:
-        return texts.JOIN_VIA_START_FULL
+        return L.JOIN_VIA_START_FULL
     if not await try_register_player(bot, game, user):
-        return texts.JOIN_VIA_START_CLOSED
+        return L.JOIN_VIA_START_CLOSED
     schedule_lobby_edit(bot, game)
-    return texts.JOIN_VIA_START_OK
+    return L.JOIN_VIA_START_OK
 
 
 def schedule_lobby_edit(bot: Bot, game: Game) -> None:
@@ -283,37 +270,37 @@ async def _edit_lobby_later(bot: Bot, game: Game) -> None:
             build_lobby_text(game),
             chat_id=game.chat_id,
             message_id=game.lobby_message_id,
-            reply_markup=build_lobby_keyboard(),
+            reply_markup=build_lobby_keyboard(game),
         )
     except TelegramBadRequest:
         pass
 
 
 @router.callback_query(F.data == "lobby:start_now")
-async def on_start_now(callback: CallbackQuery, bot: Bot) -> None:
+async def on_start_now(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     game = manager.get_game(callback.message.chat.id)
     if not game or game.state != GameState.LOBBY:
-        await callback.answer("Ro'yxat yopiq.", show_alert=True)
+        await callback.answer(UL.LOBBY_CLOSED, show_alert=True)
         return
     if game.starting:
-        await callback.answer("O'yin allaqachon boshlanmoqda.", show_alert=True)
+        await callback.answer(UL.GAME_ALREADY_STARTING, show_alert=True)
         return
 
     is_owner = callback.from_user.id == game.host_id
     if not is_owner and not await _is_chat_admin(bot, game.chat_id, callback.from_user.id):
-        await callback.answer("Faqat o'yin egasi yoki guruh adminlari boshlashi mumkin.", show_alert=True)
+        await callback.answer(UL.START_OWNER_ONLY, show_alert=True)
         return
 
     if len(game.players) < game.settings.min_players:
-        await callback.answer(f"Kamida {game.settings.min_players} o'yinchi kerak.", show_alert=True)
+        await callback.answer(UL.MIN_PLAYERS_NEEDED.format(count=game.settings.min_players), show_alert=True)
         return
 
     game.starting = True
-    await callback.answer("O'yin boshlanmoqda... ▶️")
+    await callback.answer(UL.GAME_STARTING)
     await _start_game(bot, game)
 
 
-async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup | None:
+async def _group_url(bot: Bot, chat_id: int) -> str | None:
     """Guruhga qaytish tugmasi uchun havola topadi (ochiq guruh username'i yoki taklif havolasi)."""
     url = None
     try:
@@ -330,8 +317,7 @@ async def _group_return_keyboard(bot: Bot, chat_id: int) -> InlineKeyboardMarkup
             url = await bot.export_chat_invite_link(chat_id)
         except (TelegramBadRequest, TelegramForbiddenError):
             return None
-
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Guruhga qaytish", url=url)]])
+    return url
 
 
 async def _start_game(bot: Bot, game: Game) -> None:
@@ -352,7 +338,7 @@ async def _start_game(bot: Bot, game: Game) -> None:
 
     try:
         await bot.edit_message_text(
-            "🎮 O'yin boshlandi! Rollar shaxsiy xabarlarga yuborildi.",
+            _gl(game).GAME_STARTED,
             chat_id=game.chat_id,
             message_id=game.lobby_message_id,
         )
@@ -360,11 +346,15 @@ async def _start_game(bot: Bot, game: Game) -> None:
         pass
 
     await _unpin_lobby(bot, game)
-    group_kb = await _group_return_keyboard(bot, game.chat_id)
+    group_url = await _group_url(bot, game.chat_id)
 
     async def _send_role(player: Player) -> None:
+        kb = None
+        if group_url:
+            button = InlineKeyboardButton(text=get_texts(player.lang).BACK_TO_GROUP, url=group_url)
+            kb = InlineKeyboardMarkup(inline_keyboard=[[button]])
         try:
-            await bot.send_message(player.user_id, build_role_message(player, game), reply_markup=group_kb)
+            await bot.send_message(player.user_id, build_role_message(player, game), reply_markup=kb)
         except (TelegramForbiddenError, TelegramBadRequest):
             pass
 

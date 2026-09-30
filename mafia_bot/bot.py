@@ -30,6 +30,7 @@ from handlers import (
 )
 from autogame import auto_game_loop
 from game.chatlock import restore_all_locks
+from i18n import RU, UZ, LanguageMiddleware, get_texts
 from ratelimit import RateLimitMiddleware
 from weekly import weekly_rewards_loop
 
@@ -49,6 +50,8 @@ async def main() -> None:
     # Oldingi ishga tushishda tugamay qolgan o'yinlar tufayli yopiq qolgan guruhlarni ochamiz.
     await restore_all_locks(bot)
     dp = Dispatcher(storage=MemoryStorage())
+    # Har bir handlerga L (chat tili) va UL (foydalanuvchi tili) matnlarini beradi.
+    dp.update.outer_middleware(LanguageMiddleware())
 
     dp.include_router(common.router)
     dp.include_router(menu.router)
@@ -68,31 +71,10 @@ async def main() -> None:
     # Oxirida: boshqa routerlar ushlamagan guruh xabarlarini tunda o'chiradi
     dp.include_router(chat_guard.router)
 
-    await bot.set_my_commands(
-        [
-            BotCommand(command="mafia", description="Yangi Mafiya o'yini boshlash (guruhda)"),
-            BotCommand(command="stop", description="Joriy o'yinni to'xtatish"),
-            BotCommand(command="shop", description="Olmos sotib olish"),
-            BotCommand(command="almashtir", description="Olmosni Dollarga almashtirish"),
-            BotCommand(command="market", description="Bozor — valyutalar savdosi"),
-            BotCommand(command="dokon", description="Buyumlar do'koni (Himoya, Miltiq va h.k.)"),
-            BotCommand(command="sumka", description="Mening buyumlarim (yoqish/o'chirish)"),
-            BotCommand(command="send", description="Boshqa foydalanuvchiga Dollar yuborish"),
-            BotCommand(command="sendgem", description="Boshqa foydalanuvchiga Olmos yuborish"),
-            BotCommand(command="profile", description="Profilingiz (balans, statistika)"),
-            BotCommand(command="geroy", description="Geroyni sotib olish / darajasini oshirish"),
-            BotCommand(command="top", description="Umumiy reyting (barcha o'yinlar)"),
-            BotCommand(command="top1", description="Kunlik reyting"),
-            BotCommand(command="top7", description="Haftalik reyting"),
-            BotCommand(command="top30", description="Oylik reyting"),
-            BotCommand(command="rollar", description="Barcha rollar tavsifi"),
-            BotCommand(command="sozlamalar", description="Guruh sozlamalari (adminlar uchun)"),
-            BotCommand(command="help", description="Yordam"),
-            BotCommand(command="support", description="Yordam va aloqa"),
-            BotCommand(command="paysupport", description="To'lovlar bo'yicha yordam"),
-            BotCommand(command="terms", description="Foydalanish shartlari"),
-        ]
-    )
+    # Standart (o'zbekcha) va ruscha Telegram ilovasi uchun buyruqlar tavsifi.
+    for code, language_code in ((UZ, None), (RU, "ru")):
+        commands = [BotCommand(command=c, description=d) for c, d in get_texts(code).BOT_COMMANDS.items()]
+        await bot.set_my_commands(commands, language_code=language_code)
 
     weekly_task = asyncio.create_task(weekly_rewards_loop(bot))
     auto_task = asyncio.create_task(auto_game_loop(bot))

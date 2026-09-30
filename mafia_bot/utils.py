@@ -3,6 +3,7 @@ import html
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from game.models import Game
+from i18n import get_texts
 
 
 def esc(text: str) -> str:
@@ -36,8 +37,8 @@ def build_mafia_kill_keyboard(game: Game, mafia_user_id: int, exclude_ids: set[i
     kb = build_target_keyboard(game, exclude_ids, "m_kill")
     mafia = game.players.get(mafia_user_id)
     if mafia and mafia.items.get("rifle", 0) > 0:
-        rifle_on = mafia_user_id in game.mafia_rifle_users
-        label = "🔫 Miltiq bilan otish: YONIQ ✅" if rifle_on else "🔫 Miltiq bilan otish: O'CHIQ"
+        L = get_texts(mafia.lang)
+        label = L.RIFLE_ON if mafia_user_id in game.mafia_rifle_users else L.RIFLE_OFF
         kb.inline_keyboard.append([InlineKeyboardButton(text=label, callback_data="m_rifle_toggle")])
     return kb
 
@@ -57,14 +58,14 @@ def build_confirm_keyboard(likes: int, dislikes: int) -> InlineKeyboardMarkup:
     )
 
 
-def build_vote_keyboard(game: Game) -> InlineKeyboardMarkup:
+def build_vote_keyboard(game: Game, lang: str | None = None) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=p.full_name, callback_data=f"vote:{p.user_id}")
         for p in game.players.values()
         if p.alive
     ]
     rows = _in_columns(buttons)
-    rows.append([InlineKeyboardButton(text="🚫 Ovoz bermaslik", callback_data="vote:skip")])
+    rows.append([InlineKeyboardButton(text=get_texts(lang).VOTE_SKIP_BUTTON, callback_data="vote:skip")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

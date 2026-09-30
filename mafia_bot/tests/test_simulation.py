@@ -13,6 +13,7 @@ from game import engine
 from game.manager import manager
 from game.models import Game, GameState, Player
 from game.roles import assign_roles
+from i18n import LANGS
 from handlers import day, night
 
 HANDLERS = {
@@ -130,7 +131,7 @@ class SimulationTest(unittest.IsolatedAsyncioTestCase):
         bot = FakeBot(chat_id)
         game = manager.create_game(chat_id, host_id=1)
         for uid in range(1, n_players + 1):
-            game.players[uid] = Player(user_id=uid, full_name=f"P{uid}")
+            game.players[uid] = Player(user_id=uid, full_name=f"P{uid}", lang=random.choice(LANGS))
             manager.register_player(game, uid)
         assign_roles(game)
         # Ba'zilarga buyum va Geroy beramiz
@@ -143,6 +144,7 @@ class SimulationTest(unittest.IsolatedAsyncioTestCase):
 
         for key, value in SETTINGS_FAST.items():
             setattr(game.settings, key, value)
+        game.settings.lang = LANGS[seed % len(LANGS)]
         if seed % 2 == 0:
             # Juft seed'larda boshqa guruh sozlamalari bilan o'ynaymiz.
             game.settings.reveal_roles = False

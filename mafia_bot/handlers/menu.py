@@ -3,117 +3,106 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 import db
-from handlers import admin, items, market, shop
 import texts
-from texts import HELP_TEXT, ITEM_STORE_RULE
+from handlers import admin, items, market, shop
 
 router = Router(name="menu")
-
-MAIN_MENU_TEXT = (
-    "🎩 <b>Qorong'u shaharga xush kelibsiz!</b>\n\n"
-    "<i>Bu yerda oddiy qoidalar ishlamaydi. Do'stlik, xiyonat va intriga — "
-    "barchasi bir-biriga qorishib ketgan.</i>\n\n"
-    "🛡 <b>Tinch aholi</b> bo'lib shaharni qutqarasizmi yoki 🔪 <b>Mafiya</b> bo'lib "
-    "hammani yo'q qilasizmi?\n\n"
-    "Guruhga qo'shing va <code>/mafia</code> yozing yoki pastdagi tugmalardan foydalaning 👇\n\n"
-    + texts.ADD_TO_GROUP_RIGHTS
-)
 
 # Guruhga qo'shishda so'raladigan admin huquqlari: xabarlarni o'chirish, cheklash, qadash.
 ADD_TO_GROUP_ADMIN_RIGHTS = "delete_messages+restrict_members+pin_messages"
 
-BACK_BUTTON = InlineKeyboardButton(text="⬅️ Bosh menyu", callback_data="menu:back")
+
+def main_menu_text(L=texts) -> str:
+    return f"{L.MAIN_MENU_TEXT}\n\n{L.ADD_TO_GROUP_RIGHTS}"
 
 
-def _with_back(kb: InlineKeyboardMarkup | None) -> InlineKeyboardMarkup:
+def _with_back(kb: InlineKeyboardMarkup | None, L=texts) -> InlineKeyboardMarkup:
     rows = list(kb.inline_keyboard) if kb else []
-    rows.append([BACK_BUTTON])
+    rows.append([InlineKeyboardButton(text=L.MENU_BACK, callback_data="menu:back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def build_main_menu_keyboard(bot_username: str) -> InlineKeyboardMarkup:
+def build_main_menu_keyboard(bot_username: str, L=texts) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="➕ Guruhingizga qo'shish",
+                    text=L.MENU_ADD_TO_GROUP,
                     # admin= parametri guruhga qo'shishda kerakli huquqlarni oldindan belgilab beradi.
                     url=f"https://t.me/{bot_username}?startgroup=true&admin={ADD_TO_GROUP_ADMIN_RIGHTS}",
                 )
             ],
             [
-                InlineKeyboardButton(text="👤 Mening profilim", callback_data="menu:profile"),
-                InlineKeyboardButton(text="🛒 Do'kon", callback_data="menu:store"),
+                InlineKeyboardButton(text=L.MENU_PROFILE, callback_data="menu:profile"),
+                InlineKeyboardButton(text=L.MENU_STORE, callback_data="menu:store"),
             ],
             [
-                InlineKeyboardButton(text="🛍 Bozor", callback_data="menu:market"),
-                InlineKeyboardButton(text="💎 Olmos sotib olish", callback_data="menu:shop"),
+                InlineKeyboardButton(text=L.MENU_MARKET, callback_data="menu:market"),
+                InlineKeyboardButton(text=L.MENU_SHOP, callback_data="menu:shop"),
             ],
             [
-                InlineKeyboardButton(text="💸 Pul yuborish", callback_data="menu:send_dollar"),
-                InlineKeyboardButton(text="💎 Olmos yuborish", callback_data="menu:send_diamond"),
+                InlineKeyboardButton(text=L.MENU_SEND_DOLLAR, callback_data="menu:send_dollar"),
+                InlineKeyboardButton(text=L.MENU_SEND_DIAMOND, callback_data="menu:send_diamond"),
             ],
-            [InlineKeyboardButton(text=texts.MENU_EXCHANGE_BUTTON, callback_data="menu:exchange")],
-            [InlineKeyboardButton(text="❓ Yordam", callback_data="menu:help")],
+            [InlineKeyboardButton(text=L.MENU_EXCHANGE_BUTTON, callback_data="menu:exchange")],
+            [
+                InlineKeyboardButton(text=L.MENU_HELP, callback_data="menu:help"),
+                InlineKeyboardButton(text=L.MENU_LANGUAGE, callback_data="lang:menu"),
+            ],
         ]
     )
 
 
 @router.callback_query(F.data == "menu:back")
-async def on_back(callback: CallbackQuery, bot: Bot) -> None:
+async def on_back(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     me = await bot.get_me()
     await callback.answer()
+    kb = build_main_menu_keyboard(me.username, UL)
     try:
-        await callback.message.edit_text(MAIN_MENU_TEXT, reply_markup=build_main_menu_keyboard(me.username))
+        await callback.message.edit_text(main_menu_text(UL), reply_markup=kb)
     except TelegramBadRequest:
-        await callback.message.answer(MAIN_MENU_TEXT, reply_markup=build_main_menu_keyboard(me.username))
+        await callback.message.answer(main_menu_text(UL), reply_markup=kb)
 
 
 @router.callback_query(F.data == "menu:profile")
-async def on_profile(callback: CallbackQuery) -> None:
+async def on_profile(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     text, kb = await admin.build_profile_view(
-        callback.from_user.id, callback.from_user.full_name, callback.from_user.username
+        callback.from_user.id, callback.from_user.full_name, callback.from_user.username, UL
     )
     await callback.message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "menu:store")
-async def on_store(callback: CallbackQuery) -> None:
+async def on_store(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    await callback.message.answer(
-        "🎒 <b>BUYUMLAR DO'KONI</b>\n"
-        "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
-        "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi.\n\n"
-        f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
-        reply_markup=_with_back(items.build_store_keyboard()),
-    )
+    await callback.message.answer(items.store_text(UL), reply_markup=_with_back(items.build_store_keyboard(UL), UL))
 
 
 @router.callback_query(F.data == "menu:market")
-async def on_market(callback: CallbackQuery) -> None:
+async def on_market(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
-    text, kb = await market.build_market_view()
-    await callback.message.answer(text, reply_markup=_with_back(kb))
+    text, kb = await market.build_market_view(UL)
+    await callback.message.answer(text, reply_markup=_with_back(kb, UL))
 
 
 @router.callback_query(F.data == "menu:shop")
-async def on_shop(callback: CallbackQuery) -> None:
+async def on_shop(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    text, kb = shop.shop_view()
-    await callback.message.answer(text, reply_markup=_with_back(kb))
+    text, kb = shop.shop_view(UL)
+    await callback.message.answer(text, reply_markup=_with_back(kb, UL))
 
 
 @router.callback_query(F.data == "menu:exchange")
-async def on_exchange(callback: CallbackQuery) -> None:
+async def on_exchange(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
-    await callback.message.answer(shop.exchange_text(), reply_markup=_with_back(shop.build_exchange_keyboard()))
+    await callback.message.answer(shop.exchange_text(UL), reply_markup=_with_back(shop.build_exchange_keyboard(), UL))
 
 
 @router.callback_query(F.data == "menu:help")
-async def on_help(callback: CallbackQuery) -> None:
+async def on_help(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
-    await callback.message.answer(HELP_TEXT, reply_markup=_with_back(None))
+    await callback.message.answer(UL.HELP_TEXT, reply_markup=_with_back(None, UL))

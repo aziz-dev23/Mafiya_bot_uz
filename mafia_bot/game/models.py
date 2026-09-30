@@ -57,6 +57,8 @@ class Player:
     missed_votes: int = 0
     missed_nights: int = 0
     afk: bool = False
+    # Shaxsiy xabarlar tili (i18n.LANGS).
+    lang: str = "uz"
     # O'yinda tugatgan o'yinlari soni (yangi o'yinchilarga maslahat berish uchun).
     games_played: int = 0
 

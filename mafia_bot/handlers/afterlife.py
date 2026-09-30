@@ -11,6 +11,7 @@ import texts
 from config import LAST_WORD_MAX_LENGTH
 from game.manager import manager
 from game.models import Game, GameState, Player
+from i18n import get_texts
 from utils import esc, mention
 
 router = Router(name="afterlife")
@@ -30,22 +31,23 @@ class DeadPlayerFilter(Filter):
 
 
 @router.message(F.chat.type == "private", DeadPlayerFilter())
-async def on_dead_player_message(message: Message, bot: Bot, game: Game, player: Player) -> None:
+async def on_dead_player_message(message: Message, bot: Bot, game: Game, player: Player, UL=texts) -> None:
     deadline = game.last_word_deadline.get(player.user_id)
     if deadline is not None and time.monotonic() <= deadline:
         if len(message.text) > LAST_WORD_MAX_LENGTH:
             await message.answer(
-                texts.LAST_WORD_TOO_LONG.format(length=len(message.text), limit=LAST_WORD_MAX_LENGTH)
+                UL.LAST_WORD_TOO_LONG.format(length=len(message.text), limit=LAST_WORD_MAX_LENGTH)
             )
             return
         del game.last_word_deadline[player.user_id]
         try:
             await bot.send_message(
-                game.chat_id, texts.LAST_WORD_GROUP.format(name=mention(player), text=esc(message.text))
+                game.chat_id,
+                get_texts(game.settings.lang).LAST_WORD_GROUP.format(name=mention(player), text=esc(message.text)),
             )
         except (TelegramBadRequest, TelegramForbiddenError):
             return
-        await message.answer(texts.LAST_WORD_SENT)
+        await message.answer(UL.LAST_WORD_SENT)
         return
     game.last_word_deadline.pop(player.user_id, None)
 

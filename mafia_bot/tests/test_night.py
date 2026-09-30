@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 from helpers import make_bot, make_game, private_texts
 
+import texts
 from game import engine
 from game.models import GameState, Role
 
@@ -165,7 +166,7 @@ class MinerTest(NightTestCase):
         msgs = await self._dig(0.9)
         engine.db.add_balance.assert_not_awaited()
         engine.db.add_item.assert_not_awaited()
-        self.assertEqual(msgs, [engine.texts.MINER_FOUND_NOTHING])
+        self.assertEqual(msgs, [texts.MINER_FOUND_NOTHING])
 
 
 class DawnTest(NightTestCase):
@@ -177,7 +178,7 @@ class DawnTest(NightTestCase):
         sleep.assert_awaited_once_with(dawn)
         self.assertEqual(game.state, GameState.DAWN)
         group = [c.args[1] for c in self.bot.send_message.call_args_list if c.args[0] == game.chat_id]
-        self.assertEqual(group, [engine.texts.DAWN_ANNOUNCEMENT.format(seconds=engine._secs(dawn))])
+        self.assertEqual(group, [texts.DAWN_ANNOUNCEMENT.format(seconds=engine._secs(dawn))])
 
     async def test_no_dawn_when_hero_disabled(self):
         game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)

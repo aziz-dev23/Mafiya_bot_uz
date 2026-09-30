@@ -6,10 +6,10 @@ from datetime import datetime, timedelta, timezone
 from aiogram import Bot
 
 import db
-import texts
 from config import TIMEZONE_OFFSET_HOURS
 from game.manager import manager
 from game.settings import GroupSettings
+from i18n import get_texts
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ async def open_due_lobbies(bot: Bot, now: datetime | None = None) -> list[int]:
             continue
         _opened.add((chat_id, today))
         try:
-            await bot.send_message(chat_id, texts.AUTO_GAME_OPENED)
+            await bot.send_message(chat_id, get_texts(settings.lang).AUTO_GAME_OPENED)
             if await open_lobby(bot, chat_id):
                 opened.append(chat_id)
         except Exception:

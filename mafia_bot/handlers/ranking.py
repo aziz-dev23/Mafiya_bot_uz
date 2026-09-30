@@ -9,38 +9,38 @@ from utils import esc
 router = Router(name="ranking")
 
 
-async def _reply_top(message: Message, title: str, since: int | None) -> None:
+async def _reply_top(message: Message, L, title: str, since: int | None) -> None:
     rows = await db.top_points(since=since, limit=10)
     if not rows:
-        await message.answer(f"{title}\n\nHozircha ma'lumot yo'q.")
+        await message.answer(f"{title}\n\n{L.TOP_EMPTY}")
         return
     lines = [title, ""]
     for i, row in enumerate(rows, 1):
-        lines.append(f"{i}. {esc(row['full_name'])} — {row['total']} ball")
+        lines.append(L.TOP_LINE.format(place=i, name=esc(row["full_name"]), total=row["total"]))
     # Foydalanuvchi TOP-10 da bo'lmasa, oxirida uning o'z o'rni ko'rsatiladi.
     user_id = message.from_user.id if message.from_user else None
     if user_id and all(row["user_id"] != user_id for row in rows):
         rank = await db.points_rank(user_id, since)
         if rank:
-            lines.append(texts.TOP_YOUR_PLACE.format(place=rank[0], total=rank[1]))
+            lines.append(L.TOP_YOUR_PLACE.format(place=rank[0], total=rank[1]))
     await message.answer("\n".join(lines))
 
 
 @router.message(Command("top"))
-async def cmd_top(message: Message) -> None:
-    await _reply_top(message, "🏆 <b>Umumiy TOP (barcha o'yinlar)</b>", since=None)
+async def cmd_top(message: Message, L=texts) -> None:
+    await _reply_top(message, L, L.TOP_ALL_TITLE, since=None)
 
 
 @router.message(Command("top1"))
-async def cmd_top1(message: Message) -> None:
-    await _reply_top(message, "🕐 <b>Kunlik TOP</b> (bugun 00:00 — 23:59)", since=db.period_starts()["daily"])
+async def cmd_top1(message: Message, L=texts) -> None:
+    await _reply_top(message, L, L.TOP_DAY_TITLE, since=db.period_starts()["daily"])
 
 
 @router.message(Command("top7"))
-async def cmd_top7(message: Message) -> None:
-    await _reply_top(message, "📅 <b>Haftalik TOP</b> (dushanba — yakshanba)", since=db.period_starts()["weekly"])
+async def cmd_top7(message: Message, L=texts) -> None:
+    await _reply_top(message, L, L.TOP_WEEK_TITLE, since=db.period_starts()["weekly"])
 
 
 @router.message(Command("top30"))
-async def cmd_top30(message: Message) -> None:
-    await _reply_top(message, "🗓 <b>Oylik TOP</b> (oyning 1-sanasidan)", since=db.period_starts()["monthly"])
+async def cmd_top30(message: Message, L=texts) -> None:
+    await _reply_top(message, L, L.TOP_MONTH_TITLE, since=db.period_starts()["monthly"])

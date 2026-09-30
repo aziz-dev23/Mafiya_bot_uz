@@ -65,6 +65,8 @@ class GroupSettings:
     open_votes: bool = True
     lock_mode: str = LOCK_ALL
     mode: str = MODE_CLASSIC
+    # Guruhga chiqadigan xabarlar tili (i18n.LANGS); shaxsiy xabarlar har kimning o'z tilida.
+    lang: str = "uz"
     # "HH:MM" (Toshkent vaqti) — har kuni shu vaqtda ro'yxat avtomatik ochiladi; None — o'chiq.
     auto_time: str | None = None
 
@@ -125,4 +127,7 @@ async def load_settings(chat_id: int) -> GroupSettings:
 
 
 async def save_settings(chat_id: int, settings: GroupSettings) -> None:
+    from i18n import remember_group_lang
+
     await db.set_group_settings(chat_id, settings.to_json())
+    remember_group_lang(chat_id, settings.lang)

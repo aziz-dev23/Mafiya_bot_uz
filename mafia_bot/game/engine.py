@@ -10,7 +10,6 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
-import texts
 from config import AFK_LIMIT, ANNOUNCE_BATCH_DELAY, LAST_WORD_MAX_LENGTH, REMINDER_BEFORE_END
 from economy import (
     GUESS_REWARD_COINS,
@@ -34,7 +33,7 @@ from economy import (
     did_win,
     payout_game_results,
 )
-from texts import ROLE_NAMES
+from i18n import get_texts
 from utils import (
     build_confirm_keyboard,
     build_don_check_keyboard,
@@ -89,9 +88,19 @@ async def _get_bot_username(bot: Bot) -> str:
     return _BOT_USERNAME_CACHE
 
 
-def _goto_bot_keyboard(username: str) -> InlineKeyboardMarkup:
+def gt(game: Game):
+    """Guruhga chiqadigan matnlar — guruh tilida."""
+    return get_texts(game.settings.lang)
+
+
+def pt(player: Player):
+    """Shaxsiy matnlar — o'yinchining o'z tilida."""
+    return get_texts(player.lang)
+
+
+def _goto_bot_keyboard(game: Game, username: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🤖 Botga o'tish", url=f"https://t.me/{username}")]]
+        inline_keyboard=[[InlineKeyboardButton(text=gt(game).GOTO_BOT_BUTTON, url=f"https://t.me/{username}")]]
     )
 
 
@@ -138,7 +147,8 @@ def _n(player: Player | None) -> str:
 
 def role_reveal(game: Game, player: Player) -> str:
     """O'lgan o'yinchining roli — faqat guruh sozlamasida rol e'loni yoqilgan bo'lsa."""
-    return texts.ROLE_REVEAL.format(role=ROLE_NAMES[player.role]) if game.settings.reveal_roles else ""
+    L = gt(game)
+    return L.ROLE_REVEAL.format(role=L.ROLE_NAMES[player.role]) if game.settings.reveal_roles else ""
 
 
 # ---------- Xabar yuborish yordamchilari ----------
@@ -214,7 +224,7 @@ async def _report(bot: Bot, game: Game, line: str) -> None:
 
 
 def _death_line(game: Game, prefix: str, player: Player) -> str:
-    return f"{prefix} <b>{mention(player)}</b> halok bo'ldi.{role_reveal(game, player)}"
+    return gt(game).DEATH_LINE.format(prefix=prefix, name=mention(player), role=role_reveal(game, player))
 
 
 # ---------- O'lim va g'alaba ----------
@@ -225,29 +235,28 @@ async def _kill_player(bot: Bot, game: Game, player: Player, last_word: bool = T
     Don o'lsa — tirik Mafiyalardan biri yangi Don; Komissar o'lsa — Serjant yangi Komissar;
     oshiqlardan biri o'lsa — ikkinchisi ham halok bo'ladi. So'nggi so'z imkoniyati beriladi."""
     player.alive = False
-    log(game, texts.H_DEATH.format(name=_n(player), role=ROLE_NAMES[player.role]))
+    log(game, gt(game).H_DEATH.format(name=_n(player), role=gt(game).ROLE_NAMES[player.role]))
+    P = pt(player)
     if last_word and game.settings.last_word:
         seconds = game.settings.seconds("last_word")
         game.last_word_deadline[player.user_id] = time.monotonic() + seconds
         await _safe_send(
-            bot, player.user_id, texts.LAST_WORD_PROMPT.format(seconds=_secs(seconds), limit=LAST_WORD_MAX_LENGTH)
+            bot, player.user_id, P.LAST_WORD_PROMPT.format(seconds=_secs(seconds), limit=LAST_WORD_MAX_LENGTH)
         )
-    await _safe_send(bot, player.user_id, texts.DEAD_CHAT_HINT)
+    await _safe_send(bot, player.user_id, P.DEAD_CHAT_HINT)
 
     if player.role == Role.DON:
         successors = _alive(game, Role.MAFIA)
         if successors:
             new_don = random.choice(successors)
             new_don.role = Role.DON
-            await _safe_send(
-                bot, new_don.user_id, "🤵🏻 Don halok bo'ldi! Mafiya jamoasi ichida endi siz — yangi Donsiz."
-            )
+            await _safe_send(bot, new_don.user_id, pt(new_don).NEW_DON)
 
     if player.role == Role.DETECTIVE and not _alive(game, Role.DETECTIVE):
         sergeants = _alive(game, Role.SERGEANT)
         if sergeants:
             sergeants[0].role = Role.DETECTIVE
-            await _safe_send(bot, sergeants[0].user_id, texts.SERGEANT_PROMOTED)
+            await _safe_send(bot, sergeants[0].user_id, pt(sergeants[0]).SERGEANT_PROMOTED)
 
     if game.lovers and player.user_id in game.lovers:
         partner_id = game.lovers[1] if game.lovers[0] == player.user_id else game.lovers[0]
@@ -256,7 +265,7 @@ async def _kill_player(bot: Bot, game: Game, player: Player, last_word: bool = T
             await _kill_player(bot, game, partner)
             if game.state == GameState.NIGHT:
                 game.night_kills.setdefault(partner.user_id, None)
-            await _report(bot, game, texts.LOVER_DIED.format(name=mention(partner), role=role_reveal(game, partner)))
+            await _report(bot, game, gt(game).LOVER_DIED.format(name=mention(partner), role=role_reveal(game, partner)))
 
 
 def check_win(game: Game) -> str | None:
@@ -286,7 +295,7 @@ def team_of(player: Player) -> str:
 
 def _team_names(game: Game, player: Player) -> str:
     names = [esc(p.full_name) for p in _alive(game, *MAFIA_TEAM_ROLES) if p.user_id != player.user_id]
-    return ", ".join(names) or texts.NO_TEAMMATES
+    return ", ".join(names) or pt(player).NO_TEAMMATES
 
 
 # ---------- Tun ----------
@@ -308,19 +317,21 @@ def doctor_forbidden_ids(game: Game, doctor_id: int) -> set[int]:
     return forbidden
 
 
-def mafia_status_text(game: Game) -> str:
-    lines = [texts.MAFIA_VOTES_HEADER]
+def mafia_status_text(game: Game, lang: str | None = None) -> str:
+    L = get_texts(lang)
+    lines = [L.MAFIA_VOTES_HEADER]
     for voter in _alive(game, *MAFIA_KILL_ROLES):
         target_id = game.mafia_votes.get(voter.user_id)
-        target = esc(game.players[target_id].full_name) if target_id in game.players else texts.MAFIA_VOTE_PENDING
-        lines.append(texts.MAFIA_VOTE_LINE.format(voter=esc(voter.full_name), target=target))
+        target = esc(game.players[target_id].full_name) if target_id in game.players else L.MAFIA_VOTE_PENDING
+        lines.append(L.MAFIA_VOTE_LINE.format(voter=esc(voter.full_name), target=target))
     return "\n".join(lines)
 
 
 async def update_mafia_status(bot: Bot, game: Game) -> None:
     """Mafiya jamoasining har bir a'zosidagi ovozlar xabarini tahrirlaydi."""
-    text = mafia_status_text(game)
     for user_id, message_id in list(game.mafia_status_msgs.items()):
+        member = game.players.get(user_id)
+        text = mafia_status_text(game, member.lang if member else None)
         try:
             await bot.edit_message_text(text, chat_id=user_id, message_id=message_id)
         except (TelegramBadRequest, TelegramForbiddenError):
@@ -351,7 +362,8 @@ def _reset_night(game: Game) -> None:
 
 async def night_phase(bot: Bot, game: Game) -> None:
     _reset_night(game)
-    log(game, texts.HISTORY_NIGHT.format(n=game.day_number))
+    G = gt(game)
+    log(game, G.HISTORY_NIGHT.format(n=game.day_number))
     if game.settings.lock_mode == LOCK_ALL:
         await lock_chat(bot, game)
     night_seconds = game.settings.seconds("night")
@@ -361,17 +373,15 @@ async def night_phase(bot: Bot, game: Game) -> None:
         game.chat_id,
         NIGHT_IMAGE_PATH,
         "night",
-        f"🌌 <b>Tun — {game.day_number}</b>\n"
-        "Ko'chaga faqat jasur va qo'rqmas odamlar chiqishdi. Ertalab tirik "
-        "qolganlarni sanaymiz...",
+        G.NIGHT_BANNER.format(n=game.day_number),
     )
 
     username = await _get_bot_username(bot)
     await bot.send_message(
         game.chat_id,
-        f"👥 <b>Tirik o'yinchilar:</b>\n{_alive_list_text(game)}\n\n"
-        f"⏳ Tonggacha {_secs(night_seconds)} soniya qoldi.",
-        reply_markup=_goto_bot_keyboard(username),
+        G.ALIVE_LIST.format(players=_alive_list_text(game)) + "\n\n"
+        + G.NIGHT_TIME_LEFT.format(seconds=_secs(night_seconds)),
+        reply_markup=_goto_bot_keyboard(game, username),
     )
 
     team_ids = {p.user_id for p in _alive(game, *MAFIA_TEAM_ROLES)}
@@ -383,42 +393,43 @@ async def night_phase(bot: Bot, game: Game) -> None:
 
     for p in _alive(game):
         uid = p.user_id
+        P = pt(p)
         if p.role in MAFIA_KILL_ROLES:
             expect(
                 p,
-                texts.MAFIA_KILL_PROMPT.format(teammates=_team_names(game, p)),
+                P.MAFIA_KILL_PROMPT.format(teammates=_team_names(game, p)),
                 build_mafia_kill_keyboard(game, uid, exclude_ids=team_ids),
             )
         elif p.role == Role.DOCTOR:
-            expect(p, texts.DOCTOR_PROMPT, build_target_keyboard(game, doctor_forbidden_ids(game, uid), "d_save"))
+            expect(p, P.DOCTOR_PROMPT, build_target_keyboard(game, doctor_forbidden_ids(game, uid), "d_save"))
         elif p.role == Role.DETECTIVE:
-            expect(p, "🕵️ Kimni tekshirmoqchisiz?", build_target_keyboard(game, {uid}, "c_check"))
+            expect(p, P.DETECTIVE_PROMPT, build_target_keyboard(game, {uid}, "c_check"))
         elif p.role == Role.KILLER:
-            expect(p, "🔪 Kimni yo'q qilmoqchisiz? (mustaqil)", build_target_keyboard(game, {uid}, "q_kill"))
+            expect(p, P.KILLER_PROMPT, build_target_keyboard(game, {uid}, "q_kill"))
         elif p.role == Role.HITMAN:
             expect(
                 p,
-                texts.HITMAN_KILL_PROMPT.format(teammates=_team_names(game, p)),
+                P.HITMAN_KILL_PROMPT.format(teammates=_team_names(game, p)),
                 build_target_keyboard(game, team_ids, "yq_kill"),
             )
         elif p.role == Role.POISONER and game.poison_uses < POISONER_MAX_USES:
-            expect(p, "💊 Kimga dori bermoqchisiz?", build_target_keyboard(game, {uid}, "kez_dose"))
+            expect(p, P.POISONER_PROMPT, build_target_keyboard(game, {uid}, "kez_dose"))
         elif p.role == Role.WANDERER:
-            expect(p, "🚶 Kimning oldiga bormoqchisiz?", build_target_keyboard(game, {uid}, "daydi_visit"))
+            expect(p, P.WANDERER_PROMPT, build_target_keyboard(game, {uid}, "daydi_visit"))
         elif p.role == Role.LAWYER:
             expect(
                 p,
-                "👨‍💼 Kimni tekshiruvdan (Komissardan) himoya qilmoqchisiz?",
+                P.LAWYER_PROMPT,
                 build_target_keyboard(game, {uid}, "advokat_shield"),
             )
         elif p.role == Role.JOURNALIST:
-            expect(p, texts.JOURNALIST_PROMPT_FIRST, build_target_keyboard(game, {uid}, "jur1"))
+            expect(p, P.JOURNALIST_PROMPT_FIRST, build_target_keyboard(game, {uid}, "jur1"))
         elif p.role == Role.BODYGUARD:
-            expect(p, texts.BODYGUARD_PROMPT, build_target_keyboard(game, {uid}, "guard"))
+            expect(p, P.BODYGUARD_PROMPT, build_target_keyboard(game, {uid}, "guard"))
         elif p.role == Role.SPY:
-            expect(p, texts.SPY_PROMPT, build_target_keyboard(game, {uid}, "spy"))
+            expect(p, P.SPY_PROMPT, build_target_keyboard(game, {uid}, "spy"))
         elif p.role == Role.CUPID and game.lovers is None:
-            expect(p, texts.CUPID_PROMPT_FIRST, build_target_keyboard(game, set(), "cupid1"))
+            expect(p, P.CUPID_PROMPT_FIRST, build_target_keyboard(game, set(), "cupid1"))
 
     # Harakati yo'q tiriklarga — "Bu tun kim o'ladi?" taxmini (ixtiyoriy, tunni ushlab turmaydi).
     guess_tasks = [
@@ -426,7 +437,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
             bot,
             game,
             p.user_id,
-            texts.GUESS_PROMPT.format(coins=GUESS_REWARD_COINS),
+            pt(p).GUESS_PROMPT.format(coins=GUESS_REWARD_COINS),
             reply_markup=build_target_keyboard(game, {p.user_id}, "guess"),
         )
         for p in _alive(game)
@@ -442,8 +453,7 @@ async def night_phase(bot: Bot, game: Game) -> None:
                 _safe_send(
                     bot,
                     don.user_id,
-                    "🎩 Xohlasangiz, kimningdir Komissar ekanini aniqlashga urinib ko'rishingiz mumkin "
-                    "(butun o'yin davomida faqat bir marta):",
+                    pt(don).DON_CHECK_PROMPT,
                     reply_markup=build_don_check_keyboard(game, exclude_ids=team_ids),
                 )
             )
@@ -454,9 +464,10 @@ async def night_phase(bot: Bot, game: Game) -> None:
     maybe_end_night(game)
 
     async def remind() -> None:
-        text = texts.REMINDER_NIGHT.format(seconds=REMINDER_BEFORE_END)
         for uid in game.night_expected - game.night_acted:
-            await _safe_send(bot, uid, text)
+            player = game.players.get(uid)
+            if player:
+                await _safe_send(bot, uid, pt(player).REMINDER_NIGHT.format(seconds=REMINDER_BEFORE_END))
 
     await _wait_with_reminder(game.night_event, night_seconds, remind)
 
@@ -472,10 +483,10 @@ async def kick_afk(bot: Bot, game: Game, player: Player) -> None:
     if not player.alive:
         return
     player.afk = True
-    log(game, texts.H_AFK.format(name=_n(player)))
+    log(game, gt(game).H_AFK.format(name=_n(player)))
     await _kill_player(bot, game, player, last_word=False)
-    await _send_group(bot, game, texts.AFK_KICKED.format(name=mention(player), role=role_reveal(game, player)))
-    await _safe_send(bot, player.user_id, texts.AFK_KICKED_PRIVATE)
+    await _send_group(bot, game, gt(game).AFK_KICKED.format(name=mention(player), role=role_reveal(game, player)))
+    await _safe_send(bot, player.user_id, pt(player).AFK_KICKED_PRIVATE)
 
 
 async def _check_night_afk(bot: Bot, game: Game) -> None:
@@ -494,8 +505,8 @@ async def _check_night_afk(bot: Bot, game: Game) -> None:
 async def _send_mafia_status(bot: Bot, game: Game) -> None:
     if not _alive(game, *MAFIA_KILL_ROLES):
         return
-    text = f"{mafia_status_text(game)}\n\n{texts.MAFIA_CHAT_HINT}"
     for member in _alive(game, *MAFIA_TEAM_ROLES):
+        text = f"{mafia_status_text(game, member.lang)}\n\n{pt(member).MAFIA_CHAT_HINT}"
         msg = await _safe_send(bot, member.user_id, text)
         if msg is not None:
             game.mafia_status_msgs[member.user_id] = msg.message_id
@@ -521,8 +532,8 @@ async def _use_item(game: Game, player: Player, key: str) -> bool:
     if player.items.get(key, 0) <= 0 or not await db.consume_item(player.user_id, key):
         return False
     player.items[key] -= 1
-    item = ITEMS[key]
-    log(game, texts.H_ITEM.format(emoji=item["emoji"], owner=_n(player), item=item["name"]))
+    G = gt(game)
+    log(game, G.H_ITEM.format(emoji=ITEMS[key]["emoji"], owner=_n(player), item=G.ITEM_NAMES[key]))
     return True
 
 
@@ -536,7 +547,7 @@ async def _bodyguard_intercepts(bot: Bot, game: Game, target: Player, attacker_i
             await _report(
                 bot,
                 game,
-                texts.BODYGUARD_DIED.format(guard=mention(guard), target=esc(target.full_name))
+                gt(game).BODYGUARD_DIED.format(guard=mention(guard), target=esc(target.full_name))
                 + role_reveal(game, guard),
             )
             return True
@@ -552,6 +563,7 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     har bir o'limda: Don/Komissar vorisi, oshiqning ikkinchisi (_kill_player);
     5) Daydiga natija; 6) Konchi qazilmasi; 7) "Kim o'ladi?" taxminlari; 8) Doktor cheklovlari.
     Komissar, Don, Jurnalist va Josus natijalari tanlov paytida darhol beriladi (handlers/night.py)."""
+    G = gt(game)
     doctors_by_target: dict[int, list[int]] = {}
     for doctor_id, target_id in game.doctor_targets.items():
         doctors_by_target.setdefault(target_id, []).append(doctor_id)
@@ -576,7 +588,7 @@ async def resolve_night(bot: Bot, game: Game) -> None:
             continue
         await _kill_player(bot, game, victim)
         game.night_kills[victim.user_id] = poisoner.user_id if poisoner else None
-        await _report(bot, game, _death_line(game, "💊 Tun natijasi: kezuvchining dorisidan", victim))
+        await _report(bot, game, _death_line(game, G.PREFIX_POISON, victim))
 
     # 2) Mafiya
     mafia_target = _pick_mafia_target(game)
@@ -595,28 +607,23 @@ async def resolve_night(bot: Bot, game: Game) -> None:
 
     if victim and victim.role == Role.WOLF:
         victim.role = Role.MAFIA
-        await _safe_send(
-            bot,
-            victim.user_id,
-            "🐺 Mafiya sizni tunda yo'q qilishga urindi... lekin siz aslida ulardan ekansiz! "
-            f"Siz endi Mafiya jamoasining a'zosisiz.\nSherik mafiyalar: {_team_names(game, victim)}",
-        )
+        await _safe_send(bot, victim.user_id, pt(victim).WOLF_TURNED.format(teammates=_team_names(game, victim)))
         victim = None
 
     if victim and await _use_item(game, victim, "mirror"):
         alive_team = _alive(game, *MAFIA_TEAM_ROLES)
-        await _safe_send(bot, victim.user_id, "🔮 Sehrli oynangiz o'qni qaytardi! Siz omon qoldingiz.")
+        await _safe_send(bot, victim.user_id, pt(victim).MIRROR_SAVED)
         if alive_team:
             bounced = random.choice(alive_team)
             await _kill_player(bot, game, bounced)
             # O'q qaytgan holatda "qotil" — oyna egasi.
             game.night_kills[bounced.user_id] = victim.user_id
-            await _report(bot, game, _death_line(game, "🔮 Tun natijasi: mafiyaning o'qi qaytib,", bounced))
+            await _report(bot, game, _death_line(game, G.PREFIX_MIRROR, bounced))
         victim = None
 
     if victim and not rifle_used and not victim.shield_used and await _use_item(game, victim, "shield"):
         victim.shield_used = True
-        await _safe_send(bot, victim.user_id, "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi! (bu o'yinda yana ishlamaydi)")
+        await _safe_send(bot, victim.user_id, pt(victim).SHIELD_SAVED)
         victim = None
 
     if victim:
@@ -628,7 +635,7 @@ async def resolve_night(bot: Bot, game: Game) -> None:
             game.night_kills[victim.user_id] = attacker
             for uid in voters:
                 add_mvp(game, uid, MVP_MAFIA_KILL_VOTE)
-            await _report(bot, game, _death_line(game, "☠️ Tun natijasi:", victim))
+            await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, victim))
 
             if victim.role == Role.SORCERER:
                 drag_pool = _alive(game, *MAFIA_TEAM_ROLES)
@@ -640,8 +647,7 @@ async def resolve_night(bot: Bot, game: Game) -> None:
                     await _report(
                         bot,
                         game,
-                        f"🧞‍♂️ Afsungar o'limidan oldin <b>{mention(dragged)}</b>ni ham o'zi bilan olib ketdi!"
-                        + role_reveal(game, dragged),
+                        G.SORCERER_DRAGGED.format(name=mention(dragged), role=role_reveal(game, dragged)),
                     )
 
     # 3) Qotil — mustaqil o'ldirish.
@@ -650,11 +656,11 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     if kvictim and kvictim.alive:
         attacker = killer_player.user_id if killer_player else None
         if await _use_item(game, kvictim, "killer_shield"):
-            await _safe_send(bot, kvictim.user_id, "⛑ Qotildan himoyangiz sizni saqlab qoldi!")
+            await _safe_send(bot, kvictim.user_id, pt(kvictim).KILLER_SHIELD_SAVED)
         elif not await _bodyguard_intercepts(bot, game, kvictim, attacker):
             await _kill_player(bot, game, kvictim)
             game.night_kills[kvictim.user_id] = attacker
-            await _report(bot, game, _death_line(game, "🔪 Tun natijasi: noma'lum qotil tomonidan", kvictim))
+            await _report(bot, game, _death_line(game, G.PREFIX_KILLER, kvictim))
 
     # 4) Yollanma qotil — mafiya tarafida o'ldiradi, o'z buyurtma bonusi bilan.
     hitman_player = next((p for p in _alive(game, Role.HITMAN)), None)
@@ -662,18 +668,18 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     if hvictim and hvictim.alive:
         attacker = hitman_player.user_id if hitman_player else None
         if await _use_item(game, hvictim, "killer_shield"):
-            await _safe_send(bot, hvictim.user_id, "⛑ Qotildan himoyangiz sizni saqlab qoldi!")
+            await _safe_send(bot, hvictim.user_id, pt(hvictim).KILLER_SHIELD_SAVED)
         elif not await _bodyguard_intercepts(bot, game, hvictim, attacker):
             await _kill_player(bot, game, hvictim)
             game.night_kills[hvictim.user_id] = attacker
-            await _report(bot, game, _death_line(game, "🥷 Tun natijasi: yollanma qotil tomonidan", hvictim))
+            await _report(bot, game, _death_line(game, G.PREFIX_HITMAN, hvictim))
             if hitman_player and hitman_player.contract_target == hvictim.user_id:
                 add_mvp(game, hitman_player.user_id, MVP_HITMAN_CONTRACT)
                 await db.add_balance(hitman_player.user_id, dollars=HITMAN_CONTRACT_BONUS_DOLLARS)
                 await _safe_send(
                     bot,
                     hitman_player.user_id,
-                    f"🎯 Buyurtmangizni bajardingiz! +{HITMAN_CONTRACT_BONUS_DOLLARS}💵 bonus oldingiz.",
+                    pt(hitman_player).HITMAN_CONTRACT_DONE.format(amount=HITMAN_CONTRACT_BONUS_DOLLARS),
                 )
 
     # 5) Daydi — tashrif buyurgan odami o'ldirilgan bo'lsa, qotilning ismini bilib oladi,
@@ -688,7 +694,9 @@ async def resolve_night(bot: Bot, game: Game) -> None:
             await _safe_send(
                 bot,
                 wanderer_player.user_id,
-                texts.WANDERER_SAW_KILLER.format(victim=esc(visited.full_name), killer=esc(culprit.full_name)),
+                pt(wanderer_player).WANDERER_SAW_KILLER.format(
+                    victim=esc(visited.full_name), killer=esc(culprit.full_name)
+                ),
             )
 
     await _miner_dig(bot, game)
@@ -706,24 +714,25 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     if game.night_results:
         await _send_group(bot, game, "\n\n".join(game.night_results))
     elif not game.night_kills:
-        await _send_group(bot, game, texts.NIGHT_QUIET)
+        await _send_group(bot, game, G.NIGHT_QUIET)
     game.night_results.clear()
 
 
 def _log_night_choices(game: Game) -> None:
     """Tungi tanlovlar tarixga yoziladi (Komissar, Don, Jurnalist, Josus, Kezuvchi — tanlov paytida handlerda)."""
     p = game.players.get
+    G = gt(game)
     for voter_id, target_id in game.mafia_votes.items():
-        log(game, texts.H_MAFIA_VOTE.format(voter=_n(p(voter_id)), target=_n(p(target_id))))
+        log(game, G.H_MAFIA_VOTE.format(voter=_n(p(voter_id)), target=_n(p(target_id))))
     for doctor_id, target_id in game.doctor_targets.items():
-        log(game, texts.H_DOCTOR.format(actor=_n(p(doctor_id)), target=_n(p(target_id))))
+        log(game, G.H_DOCTOR.format(actor=_n(p(doctor_id)), target=_n(p(target_id))))
     for guard_id, target_id in game.bodyguard_targets.items():
-        log(game, texts.H_BODYGUARD.format(actor=_n(p(guard_id)), target=_n(p(target_id))))
+        log(game, G.H_BODYGUARD.format(actor=_n(p(guard_id)), target=_n(p(target_id))))
     single = (
-        (Role.KILLER, game.killer_target, texts.H_KILLER),
-        (Role.HITMAN, game.hitman_target, texts.H_HITMAN),
-        (Role.WANDERER, game.wanderer_target, texts.H_WANDERER),
-        (Role.LAWYER, game.advokat_target, texts.H_LAWYER),
+        (Role.KILLER, game.killer_target, G.H_KILLER),
+        (Role.HITMAN, game.hitman_target, G.H_HITMAN),
+        (Role.WANDERER, game.wanderer_target, G.H_WANDERER),
+        (Role.LAWYER, game.advokat_target, G.H_LAWYER),
     )
     for role, target_id, template in single:
         actor = next((pl for pl in _alive(game, role)), None)
@@ -742,32 +751,33 @@ async def _resolve_cupid(bot: Bot, game: Game) -> None:
         return
     if len(game.cupid_pick) == 2:
         pair = tuple(game.cupid_pick)
-        cupid_text = texts.CUPID_CHOSEN
+        cupid_text = pt(cupid).CUPID_CHOSEN
     else:
         pair = tuple(random.sample(alive_ids, 2))
-        cupid_text = texts.CUPID_RANDOM
+        cupid_text = pt(cupid).CUPID_RANDOM
     game.lovers = pair
     first, second = game.players[pair[0]], game.players[pair[1]]
-    log(game, texts.H_LOVERS.format(first=_n(first), second=_n(second)))
+    log(game, gt(game).H_LOVERS.format(first=_n(first), second=_n(second)))
     await _safe_send(bot, cupid.user_id, cupid_text.format(first=esc(first.full_name), second=esc(second.full_name)))
-    await _safe_send(bot, first.user_id, texts.LOVER_NOTICE.format(partner=esc(second.full_name)))
-    await _safe_send(bot, second.user_id, texts.LOVER_NOTICE.format(partner=esc(first.full_name)))
+    await _safe_send(bot, first.user_id, pt(first).LOVER_NOTICE.format(partner=esc(second.full_name)))
+    await _safe_send(bot, second.user_id, pt(second).LOVER_NOTICE.format(partner=esc(first.full_name)))
 
 
 async def _miner_dig(bot: Bot, game: Game) -> None:
     """Tirik Konchi har kecha avtomatik qaziydi; topilgan narsa darhol hisobga qo'shiladi."""
     for miner in _alive(game, Role.MINER):
+        P = pt(miner)
         roll = random.random()
         if roll < MINER_COIN_CHANCE:
             amount = random.randint(MINER_COIN_MIN, MINER_COIN_MAX)
             await db.add_balance(miner.user_id, coins=amount)
-            text = texts.MINER_FOUND_COINS.format(amount=amount)
+            text = P.MINER_FOUND_COINS.format(amount=amount)
         elif roll < MINER_COIN_CHANCE + MINER_ITEM_CHANCE:
             key = random.choice(MINER_ITEM_POOL)
             await db.add_item(miner.user_id, key, 1)
-            text = texts.MINER_FOUND_ITEM.format(emoji=ITEMS[key]["emoji"], name=ITEMS[key]["name"])
+            text = P.MINER_FOUND_ITEM.format(emoji=ITEMS[key]["emoji"], name=P.ITEM_NAMES[key])
         else:
-            text = texts.MINER_FOUND_NOTHING
+            text = P.MINER_FOUND_NOTHING
         await _safe_send(bot, miner.user_id, text)
 
 
@@ -775,7 +785,9 @@ async def _pay_guesses(bot: Bot, game: Game) -> None:
     for guesser_id, target_id in game.guesses.items():
         if target_id in game.night_kills:
             await db.add_balance(guesser_id, coins=GUESS_REWARD_COINS)
-            await _safe_send(bot, guesser_id, texts.GUESS_WON.format(coins=GUESS_REWARD_COINS))
+            guesser = game.players.get(guesser_id)
+            if guesser:
+                await _safe_send(bot, guesser_id, pt(guesser).GUESS_WON.format(coins=GUESS_REWARD_COINS))
 
 
 # ---------- Tong ----------
@@ -787,7 +799,8 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
     if not game.settings.hero_active:
         return
     game.state = GameState.DAWN
-    log(game, texts.HISTORY_DAWN.format(n=game.day_number))
+    G = gt(game)
+    log(game, G.HISTORY_DAWN.format(n=game.day_number))
     dawn_seconds = game.settings.seconds("dawn")
     game.dawn_shots.clear()
     game.dawn_acted.clear()
@@ -800,15 +813,14 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
     ]
     game.dawn_needed = len(eligible)
 
-    await bot.send_message(game.chat_id, texts.DAWN_ANNOUNCEMENT.format(seconds=_secs(dawn_seconds)))
+    await bot.send_message(game.chat_id, G.DAWN_ANNOUNCEMENT.format(seconds=_secs(dawn_seconds)))
 
     dawn_prompt_tasks = [
         _safe_send_replace(
             bot,
             game,
             hero.user_id,
-            "🦸 Siz Geroysiz — tongda zarba berish huquqingiz bor! "
-            "Kimni otmoqchisiz? (xohlamasangiz e'tiborsiz qoldiring)",
+            pt(hero).HERO_PROMPT,
             reply_markup=build_target_keyboard(game, exclude_ids={hero.user_id}, prefix="hero_shot"),
         )
         for hero in eligible
@@ -828,19 +840,19 @@ async def dawn_phase(bot: Bot, game: Game) -> None:
             continue
         # Geroy zarbasi bir o'yinda faqat bir marta (himoya to'xtatgan bo'lsa ham) ishlatiladi.
         game.hero_shot_used.add(shooter_id)
-        log(game, texts.H_HERO.format(actor=_n(shooter), target=_n(target)))
+        log(game, G.H_HERO.format(actor=_n(shooter), target=_n(target)))
 
         if shooter.hero_level < HERO_BYPASS_LEVEL:
             if await _use_item(game, target, "mirror"):
-                await _safe_send(bot, shooter.user_id, "🔮 Nishoningizning sehrli oynasi zarbangizni qaytardi!")
-                await _safe_send(bot, target.user_id, "🔮 Sehrli oynangiz Geroy zarbasidan sizni asradi!")
+                await _safe_send(bot, shooter.user_id, pt(shooter).HERO_MIRROR_SHOOTER)
+                await _safe_send(bot, target.user_id, pt(target).HERO_MIRROR_TARGET)
                 continue
             if await _use_item(game, target, "hero_immunity"):
-                await _safe_send(bot, target.user_id, "🔰 Geroydan himoyangiz sizni zarbadan asradi!")
+                await _safe_send(bot, target.user_id, pt(target).HERO_IMMUNITY_SAVED)
                 continue
 
         await _kill_player(bot, game, target)
-        await _report(bot, game, _death_line(game, "🦸 Geroy zarbasi:", target))
+        await _report(bot, game, _death_line(game, G.PREFIX_HERO, target))
 
 
 # ---------- Kun ----------
@@ -851,12 +863,12 @@ async def _resolve_sorcerer_revenge(bot: Bot, game: Game, sorcerer) -> None:
     if not others:
         return
 
-    await bot.send_message(game.chat_id, "🧞‍♂️ Lekin Afsungar so'nggi so'zini aytishga ulguradi...")
+    await bot.send_message(game.chat_id, gt(game).SORCERER_LAST_WORDS)
 
     game.revenge_target = None
     game.revenge_event = asyncio.Event()
     kb = build_target_keyboard(game, exclude_ids={sorcerer.user_id}, prefix="sorcerer_revenge")
-    await _safe_send(bot, sorcerer.user_id, "🧞‍♂️ O'limingizdan oldin kimdan o'ch olmoqchisiz?", reply_markup=kb)
+    await _safe_send(bot, sorcerer.user_id, pt(sorcerer).SORCERER_REVENGE_PROMPT, reply_markup=kb)
 
     try:
         await asyncio.wait_for(game.revenge_event.wait(), timeout=game.settings.seconds("revenge"))
@@ -867,7 +879,7 @@ async def _resolve_sorcerer_revenge(bot: Bot, game: Game, sorcerer) -> None:
         target = game.players.get(game.revenge_target)
         if target and target.alive:
             await _kill_player(bot, game, target)
-            await _report(bot, game, _death_line(game, "🧞‍♂️ Afsungarning o'chi:", target))
+            await _report(bot, game, _death_line(game, gt(game).PREFIX_REVENGE, target))
 
 
 def confirm_counts(game: Game) -> tuple[int, int]:
@@ -886,9 +898,7 @@ async def _confirm_vote(bot: Bot, game: Game, candidate: Player) -> bool:
 
     await bot.send_message(
         game.chat_id,
-        f"⚖️ Eng ko'p ovozni <b>{mention(candidate)}</b> oldi.\n"
-        "Uni rostdan ham osamizmi? 👍 — ha, 👎 — yo'q.\n"
-        f"⏳ {_secs(confirm_seconds)} soniya vaqt bor.",
+        gt(game).CONFIRM_PROMPT.format(name=mention(candidate), seconds=_secs(confirm_seconds)),
         reply_markup=build_confirm_keyboard(0, 0),
     )
 
@@ -898,14 +908,14 @@ async def _confirm_vote(bot: Bot, game: Game, candidate: Player) -> bool:
         pass
 
     likes, dislikes = confirm_counts(game)
-    log(game, texts.H_CONFIRM.format(name=_n(candidate), likes=likes, dislikes=dislikes))
+    log(game, gt(game).H_CONFIRM.format(name=_n(candidate), likes=likes, dislikes=dislikes))
     game.confirm_candidate = None
     if likes > dislikes:
         return True
 
     await bot.send_message(
         game.chat_id,
-        f"🙅 Ovozlar: 👍 {likes} | 👎 {dislikes}\n<b>{mention(candidate)}</b> omon qoldi — bugun hech kim osilmadi.",
+        gt(game).CONFIRM_REJECTED.format(likes=likes, dislikes=dislikes, name=mention(candidate)),
     )
     return False
 
@@ -918,12 +928,12 @@ async def _judge_cancels(bot: Bot, game: Game, candidate: Player) -> bool:
 
     game.judge_event = asyncio.Event()
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=texts.JUDGE_BUTTON, callback_data="judge_cancel")]]
+        inline_keyboard=[[InlineKeyboardButton(text=pt(judge).JUDGE_BUTTON, callback_data="judge_cancel")]]
     )
     msg = await _safe_send(
         bot,
         judge.user_id,
-        texts.JUDGE_PROMPT.format(name=esc(candidate.full_name), seconds=_secs(game.settings.seconds("judge"))),
+        pt(judge).JUDGE_PROMPT.format(name=esc(candidate.full_name), seconds=_secs(game.settings.seconds("judge"))),
         reply_markup=kb,
     )
     try:
@@ -940,14 +950,15 @@ async def _judge_cancels(bot: Bot, game: Game, candidate: Player) -> bool:
             pass
     if cancelled:
         game.judge_used = True
-        log(game, texts.H_JUDGE)
-        await bot.send_message(game.chat_id, texts.JUDGE_CANCELLED.format(name=mention(candidate)))
+        log(game, gt(game).H_JUDGE)
+        await bot.send_message(game.chat_id, gt(game).JUDGE_CANCELLED.format(name=mention(candidate)))
     return cancelled
 
 
 async def day_phase(bot: Bot, game: Game) -> None:
     game.state = GameState.DAY_DISCUSSION
-    log(game, texts.HISTORY_DAY.format(n=game.day_number))
+    G = gt(game)
+    log(game, G.HISTORY_DAY.format(n=game.day_number))
     await unlock_chat(bot, game)
     alive = _alive(game)
     discussion = game.settings.discussion_seconds(len(alive))
@@ -958,16 +969,15 @@ async def day_phase(bot: Bot, game: Game) -> None:
         game.chat_id,
         DAY_IMAGE_PATH,
         "day",
-        f"🌅 <b>Xayrli tong!</b>\n☀️ Kun: {game.day_number}\n"
-        "Shamollar tundagi mish-mishlarni butun shaharga yetkazmoqda..",
+        G.DAY_BANNER.format(n=game.day_number),
     )
 
     username = await _get_bot_username(bot)
     await bot.send_message(
         game.chat_id,
-        f"👥 <b>Tirik o'yinchilar:</b>\n{_alive_list_text(game)}\n\n"
-        f"⏳ Muhokama tugashiga {_secs(discussion)} soniya qoldi.",
-        reply_markup=_goto_bot_keyboard(username),
+        G.ALIVE_LIST.format(players=_alive_list_text(game)) + "\n\n"
+        + G.DISCUSSION_TIME_LEFT.format(seconds=_secs(discussion)),
+        reply_markup=_goto_bot_keyboard(game, username),
     )
     await asyncio.sleep(discussion)
 
@@ -978,23 +988,22 @@ async def day_phase(bot: Bot, game: Game) -> None:
 
     await bot.send_message(
         game.chat_id,
-        "🗳 <b>Ovoz berish boshlandi!</b>\nHar bir o'yinchi ovozini shaxsiy xabarda beradi.\n"
-        f"⏳ {_secs(voting)} soniya vaqt bor.",
-        reply_markup=_goto_bot_keyboard(username),
+        G.VOTING_STARTED.format(seconds=_secs(voting)),
+        reply_markup=_goto_bot_keyboard(game, username),
     )
 
-    kb = build_vote_keyboard(game)
     vote_prompt_tasks = [
-        _safe_send_replace(bot, game, voter.user_id, "🗳 Kimni shahardan haydab chiqarmoqchisiz?", reply_markup=kb)
+        _safe_send_replace(
+            bot, game, voter.user_id, pt(voter).VOTE_PROMPT, reply_markup=build_vote_keyboard(game, voter.lang)
+        )
         for voter in alive
     ]
     await asyncio.gather(*vote_prompt_tasks)
 
     async def remind() -> None:
-        text = texts.REMINDER_VOTE.format(seconds=REMINDER_BEFORE_END)
         for voter in _alive(game):
             if voter.user_id not in game.day_votes:
-                await _safe_send(bot, voter.user_id, text)
+                await _safe_send(bot, voter.user_id, pt(voter).REMINDER_VOTE.format(seconds=REMINDER_BEFORE_END))
 
     await _wait_with_reminder(game.vote_event, voting, remind)
     # Ovoz berish tugadi: tanlovni o'zgartirish endi mumkin emas.
@@ -1003,8 +1012,8 @@ async def day_phase(bot: Bot, game: Game) -> None:
 
     for voter_id, target_id in game.day_votes.items():
         voter, target = game.players.get(voter_id), game.players.get(target_id) if target_id else None
-        log(game, texts.H_VOTE.format(voter=_n(voter), target=_n(target)) if target else
-            texts.H_VOTE_SKIP.format(voter=_n(voter)))
+        log(game, G.H_VOTE.format(voter=_n(voter), target=_n(target)) if target else
+            G.H_VOTE_SKIP.format(voter=_n(voter)))
 
     await _day_phase_result(bot, game)
     await _check_vote_afk(bot, game, alive)
@@ -1037,8 +1046,7 @@ async def _day_phase_result(bot: Bot, game: Game) -> None:
             if await _use_item(game, eliminated, "vote_shield"):
                 await bot.send_message(
                     game.chat_id,
-                    f"⚖️ {mention(eliminated)} eng ko'p ovoz oldi, lekin "
-                    "Ovozdan himoya buyumi tufayli omon qoldi!",
+                    gt(game).VOTE_SHIELD_SAVED.format(name=mention(eliminated)),
                 )
                 return
 
@@ -1048,8 +1056,7 @@ async def _day_phase_result(bot: Bot, game: Game) -> None:
                         add_mvp(game, voter_id, MVP_VOTED_OUT_MAFIA)
             await bot.send_message(
                 game.chat_id,
-                f"⚖️ Shahar ovoz berdi: <b>{mention(eliminated)}</b> haydab chiqarildi."
-                + role_reveal(game, eliminated),
+                gt(game).ELIMINATED.format(name=mention(eliminated), role=role_reveal(game, eliminated)),
             )
             await _kill_player(bot, game, eliminated)
 
@@ -1057,7 +1064,7 @@ async def _day_phase_result(bot: Bot, game: Game) -> None:
                 await _resolve_sorcerer_revenge(bot, game, eliminated)
             return
 
-    await bot.send_message(game.chat_id, "⚖️ Ovozlar teng bo'ldi yoki hech kim ovoz bermadi — bugun hech kim haydalmadi.")
+    await bot.send_message(game.chat_id, gt(game).NOBODY_ELIMINATED)
 
 
 # ---------- O'yin yakuni ----------
@@ -1067,46 +1074,44 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     game.state = GameState.FINISHED
     await flush_announcements(bot, game)
     await unlock_chat(bot, game)
-    if winner == "town":
-        result_text = "🎉 <b>Tinch aholi g'alaba qozondi!</b> Barcha mafiyalar tutildi."
-    elif winner == "killer":
-        result_text = texts.KILLER_WIN_RESULT
-    else:
-        result_text = "🔪 <b>Mafiya g'alaba qozondi!</b> Shahar ularning qo'liga o'tdi."
+    result_keys = {"town": "TOWN_WIN_RESULT", "killer": "KILLER_WIN_RESULT", "mafia": "MAFIA_WIN_RESULT"}
+    G = gt(game)
+    result_text = getattr(G, result_keys[winner])
 
     private_messages = await payout_game_results(game, winner)
     for user_id, text in private_messages:
-        await _safe_send(bot, user_id, f"🏁 <b>O'yin tugadi!</b>\n\n{result_text}\n\n{text}")
+        P = pt(game.players[user_id])
+        await _safe_send(bot, user_id, f"{P.GAME_OVER}\n\n{getattr(P, result_keys[winner])}\n\n{text}")
 
     winners = [p for p in game.players.values() if did_win(p, winner)]
     losers = [p for p in game.players.values() if not did_win(p, winner)]
 
-    lines = ["🏁 <b>O'yin tugadi!</b>", "", result_text, ""]
+    lines = [G.GAME_OVER, "", result_text, ""]
 
     idx = 1
-    lines.append("<b>G'oliblar:</b>")
+    lines.append(G.WINNERS_HEADER)
     for p in winners:
-        status = "" if p.alive else " (⚰️ halok)"
-        lines.append(f"{idx}. {esc(p.full_name)} — {ROLE_NAMES[p.role]}{status}")
+        status = "" if p.alive else G.DEAD_MARK
+        lines.append(f"{idx}. {esc(p.full_name)} — {G.ROLE_NAMES[p.role]}{status}")
         idx += 1
 
     if losers:
         lines.append("")
-        lines.append("<b>Qolgan o'yinchilar:</b>")
+        lines.append(G.OTHERS_HEADER)
         for p in losers:
-            status = "" if p.alive else " (⚰️ halok)"
-            lines.append(f"{idx}. {esc(p.full_name)} — {ROLE_NAMES[p.role]}{status}")
+            status = "" if p.alive else G.DEAD_MARK
+            lines.append(f"{idx}. {esc(p.full_name)} — {G.ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0
     lines.append("")
-    lines.append(f"⏱ O'yin: {elapsed_min} daqiqa davom etdi")
+    lines.append(G.GAME_DURATION.format(minutes=elapsed_min))
     lines.append("")
-    lines.append("🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik), /top30 (oylik)")
+    lines.append(G.RANKING_HINT)
 
     await _send_group(bot, game, "\n".join(lines))
     if game.history:
-        await _send_group(bot, game, "\n".join([texts.HISTORY_HEADER, *game.history]))
+        await _send_group(bot, game, "\n".join([G.HISTORY_HEADER, *game.history]))
     manager.remove_game(game.chat_id)
 
 
@@ -1139,7 +1144,7 @@ async def run_game(bot: Bot, game: Game) -> None:
         logger.exception("Game loop error in chat %s", game.chat_id)
         try:
             await unlock_chat(bot, game)
-            await bot.send_message(game.chat_id, "⚠️ O'yinda kutilmagan xatolik yuz berdi, o'yin to'xtatildi.")
+            await bot.send_message(game.chat_id, gt(game).GAME_ERROR)
         except Exception:
             pass
         # remove_game joriy vazifani bekor qiladi — shundan keyin await ishlatib bo'lmaydi.

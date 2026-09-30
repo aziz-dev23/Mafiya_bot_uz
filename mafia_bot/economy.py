@@ -1,7 +1,6 @@
 import db
 from game.models import MAFIA_TEAM_ROLES, Game, Player, Role
-import texts
-from texts import ROLE_NAMES
+from i18n import get_texts
 
 # (olmos miqdori, narxi so'mda) — o'zingizga mos narxlarni shu yerda o'zgartiring
 # Baza narx: 1💎 = 990 so'm. Katta paketlarda skidka: 799💎 -10%, 899💎 -15%, 999💎 -20%.
@@ -75,18 +74,19 @@ MINER_COIN_MAX = 5
 MINER_ITEM_CHANCE = 0.1
 MINER_ITEM_POOL = ("shield", "mask", "poison_shield")
 
+# Buyum nomlari tillar bo'yicha texts.ITEM_NAMES da.
 # Bosqich 1 buyumlari — Mafiya/Doktor/Komissar/Tinch aholi bilan ishlaydiganlar.
 ITEMS = {
-    "shield": {"name": "Himoya", "emoji": "🛡", "price": 100, "currency": "dollar"},
-    "fake_doc": {"name": "Soxta hujjat", "emoji": "📁", "price": 190, "currency": "dollar"},
-    "vote_shield": {"name": "Ovozdan himoya", "emoji": "⚖️", "price": 1, "currency": "diamond"},
-    "rifle": {"name": "Miltiq", "emoji": "🔫", "price": 1, "currency": "diamond"},
-    "mirror": {"name": "Sehrli oyna", "emoji": "🔮", "price": 20, "currency": "diamond"},
+    "shield": {"emoji": "🛡", "price": 100, "currency": "dollar"},
+    "fake_doc": {"emoji": "📁", "price": 190, "currency": "dollar"},
+    "vote_shield": {"emoji": "⚖️", "price": 1, "currency": "diamond"},
+    "rifle": {"emoji": "🔫", "price": 1, "currency": "diamond"},
+    "mirror": {"emoji": "🔮", "price": 20, "currency": "diamond"},
     # Bosqich 2 buyumlari — yangi rollarga (Qotil/Yollanma qotil/Kezuvchi/Daydi/Konchi) bog'liq.
-    "killer_shield": {"name": "Qotildan himoya", "emoji": "⛑", "price": 2, "currency": "diamond"},
-    "poison_shield": {"name": "Doridan himoya", "emoji": "💊", "price": 100, "currency": "dollar"},
-    "mask": {"name": "Maska", "emoji": "🎭", "price": 100, "currency": "dollar"},
-    "hero_immunity": {"name": "Geroydan himoya", "emoji": "🔰", "price": 5, "currency": "diamond"},
+    "killer_shield": {"emoji": "⛑", "price": 2, "currency": "diamond"},
+    "poison_shield": {"emoji": "💊", "price": 100, "currency": "dollar"},
+    "mask": {"emoji": "🎭", "price": 100, "currency": "dollar"},
+    "hero_immunity": {"emoji": "🔰", "price": 5, "currency": "diamond"},
 }
 
 # Geroy — do'kondagi oddiy buyum emas, /geroy orqali sotib olinadigan doimiy profil buyumi.
@@ -171,15 +171,17 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
     top_bonus_ids = _top_bonus_ids(game, winner)
 
     for p in game.players.values():
+        L = get_texts(p.lang)
         won = did_win(p, winner)
         stats_role = (p.initial_role or p.role).value
         if p.afk:
             await db.record_game_result(p.user_id, False)
             await db.record_role_result(p.user_id, stats_role, False)
-            private_messages.append((p.user_id, f"🎭 Rolingiz: {ROLE_NAMES[p.role]}\n\n{texts.PAYOUT_AFK}"))
+            role_line = L.PAYOUT_ROLE_LINE.format(role=L.ROLE_NAMES[p.role], status=L.PAYOUT_DEAD)
+            private_messages.append((p.user_id, f"{role_line}\n\n{L.PAYOUT_AFK}"))
             continue
         points = (POINTS_TOP_BONUS if p.user_id in top_bonus_ids else POINTS_WIN) if won else POINTS_LOSE
-        status = "🟢 tirik" if p.alive else "⚰️ halok"
+        status = L.PAYOUT_ALIVE if p.alive else L.PAYOUT_DEAD
 
         if won and winner == "killer":
             total = KILLER_SOLO_WIN_DOLLARS
@@ -191,12 +193,12 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
         notes = []
         if won and p.alive:
             total += DOLLARS_ALIVE_WINNER_BONUS
-            notes.append(texts.PAYOUT_NOTE_ALIVE.format(amount=DOLLARS_ALIVE_WINNER_BONUS))
+            notes.append(L.PAYOUT_NOTE_ALIVE.format(amount=DOLLARS_ALIVE_WINNER_BONUS))
         if p.role == Role.DETECTIVE and game.detective_correct:
             total += DETECTIVE_BONUS_DOLLARS
-            notes.append(texts.PAYOUT_NOTE_DETECTIVE.format(amount=DETECTIVE_BONUS_DOLLARS))
+            notes.append(L.PAYOUT_NOTE_DETECTIVE.format(amount=DETECTIVE_BONUS_DOLLARS))
         if p.user_id in top_bonus_ids:
-            notes.append(texts.PAYOUT_NOTE_MVP)
+            notes.append(L.PAYOUT_NOTE_MVP)
 
         await db.add_balance(p.user_id, dollars=total)
         await db.record_game_result(p.user_id, won)
@@ -204,14 +206,14 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
         await db.add_points(p.user_id, points)
 
         if won and winner == "killer":
-            outcome_line = texts.PAYOUT_KILLER_SOLO
+            outcome_line = L.PAYOUT_KILLER_SOLO
         else:
-            outcome_line = texts.PAYOUT_WON if won else texts.PAYOUT_LOST
+            outcome_line = L.PAYOUT_WON if won else L.PAYOUT_LOST
         note = f" ({', '.join(notes)})" if notes else ""
         text = (
-            f"🎭 Rolingiz: {ROLE_NAMES[p.role]} ({status})\n\n"
-            f"{outcome_line}\n"
-            f"💰 +{total}💵  🏅 +{points} ball{note}"
+            L.PAYOUT_ROLE_LINE.format(role=L.ROLE_NAMES[p.role], status=status) + "\n\n"
+            + outcome_line + "\n"
+            + L.PAYOUT_TOTALS.format(dollars=total, points=points, note=note)
         )
         private_messages.append((p.user_id, text))
     return private_messages

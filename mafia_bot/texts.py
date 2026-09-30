@@ -139,7 +139,8 @@ HELP_TEXT = (
     "/sendgem — boshqa foydalanuvchiga Olmos yuborish\n"
     "/geroy — Geroyni sotib olish / darajasini oshirish\n"
     "/rollar — barcha rollar tavsifi\n"
-    "/sozlamalar — guruh sozlamalari (faqat guruh adminlari)\n\n"
+    "/sozlamalar — guruh sozlamalari (faqat guruh adminlari)\n"
+    "/til — tilni tanlash\n\n"
     "<b>Reyting:</b>\n"
     "/top — umumiy reyting\n"
     "/top1 — kunlik, /top7 — haftalik, /top30 — oylik reyting\n\n"
@@ -201,7 +202,7 @@ EXCHANGE_DONE = "💱 <b>ALMASHTIRISH</b>\n\n✅ {amount}{emoji} → {dollars}�
 EXCHANGE_DONE_SHORT = "✅ {amount}{emoji} → {dollars}💵 almashtirildi."
 EXCHANGE_BAD_AMOUNT = "Noto'g'ri miqdor."
 EXCHANGE_NOT_ENOUGH_DIAMONDS = "Olmosingiz yetarli emas."
-EXCHANGE_NOT_ENOUGH_COINS = "Coin'ingiz yetarli emas."
+EXCHANGE_NOT_ENOUGH_COINS = "Coinlaringiz yetarli emas."
 MENU_EXCHANGE_BUTTON = "💱 Almashtirish (💎/🪙 → 💵)"
 KILLER_WIN_RESULT = "🔪 <b>Qotil yakka o'zi g'alaba qozondi!</b> Shaharda unga qarshi turadigan hech kim qolmadi."
 
@@ -486,3 +487,399 @@ REFUND_EXTERNAL_ADMIN = (
     "↩️ Telegram orqali qaytarilgan to'lov: id=<code>{user_id}</code>, {stars}⭐, "
     "{taken}/{diamonds}💎 yechildi. ID: <code>{charge_id}</code>"
 )
+
+# ---------- Engine (o'yin jarayoni) ----------
+GOTO_BOT_BUTTON = "🤖 Botga o'tish"
+DEATH_LINE = "{prefix} <b>{name}</b> halok bo'ldi.{role}"
+NEW_DON = "🤵🏻 Don halok bo'ldi! Mafiya jamoasi ichida endi siz — yangi Donsiz."
+NIGHT_BANNER = (
+    "🌌 <b>Tun — {n}</b>\n"
+    "Ko'chaga faqat jasur va qo'rqmas odamlar chiqishdi. Ertalab tirik qolganlarni sanaymiz..."
+)
+ALIVE_LIST = "👥 <b>Tirik o'yinchilar:</b>\n{players}"
+NIGHT_TIME_LEFT = "⏳ Tonggacha {seconds} soniya qoldi."
+DETECTIVE_PROMPT = "🕵️ Kimni tekshirmoqchisiz?"
+KILLER_PROMPT = "🔪 Kimni yo'q qilmoqchisiz? (mustaqil)"
+POISONER_PROMPT = "💊 Kimga dori bermoqchisiz?"
+WANDERER_PROMPT = "🚶 Kimning oldiga bormoqchisiz?"
+LAWYER_PROMPT = "👨‍💼 Kimni tekshiruvdan (Komissardan) himoya qilmoqchisiz?"
+DON_CHECK_PROMPT = (
+    "🎩 Xohlasangiz, kimningdir Komissar ekanini aniqlashga urinib ko'rishingiz mumkin "
+    "(butun o'yin davomida faqat bir marta):"
+)
+PREFIX_POISON = "💊 Tun natijasi: kezuvchining dorisidan"
+WOLF_TURNED = (
+    "🐺 Mafiya sizni tunda yo'q qilishga urindi... lekin siz aslida ulardan ekansiz! "
+    "Siz endi Mafiya jamoasining a'zosisiz.\nSherik mafiyalar: {teammates}"
+)
+MIRROR_SAVED = "🔮 Sehrli oynangiz o'qni qaytardi! Siz omon qoldingiz."
+PREFIX_MIRROR = "🔮 Tun natijasi: mafiyaning o'qi qaytib,"
+SHIELD_SAVED = "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi! (bu o'yinda yana ishlamaydi)"
+PREFIX_MAFIA = "☠️ Tun natijasi:"
+SORCERER_DRAGGED = "🧞‍♂️ Afsungar o'limidan oldin <b>{name}</b>ni ham o'zi bilan olib ketdi!{role}"
+KILLER_SHIELD_SAVED = "⛑ Qotildan himoyangiz sizni saqlab qoldi!"
+PREFIX_KILLER = "🔪 Tun natijasi: noma'lum qotil tomonidan"
+PREFIX_HITMAN = "🥷 Tun natijasi: yollanma qotil tomonidan"
+HITMAN_CONTRACT_DONE = "🎯 Buyurtmangizni bajardingiz! +{amount}💵 bonus oldingiz."
+HERO_PROMPT = "🦸 Siz Geroysiz — tongda zarba berish huquqingiz bor! Kimni otmoqchisiz? (xohlamasangiz e'tiborsiz qoldiring)"
+HERO_MIRROR_SHOOTER = "🔮 Nishoningizning sehrli oynasi zarbangizni qaytardi!"
+HERO_MIRROR_TARGET = "🔮 Sehrli oynangiz Geroy zarbasidan sizni asradi!"
+HERO_IMMUNITY_SAVED = "🔰 Geroydan himoyangiz sizni zarbadan asradi!"
+PREFIX_HERO = "🦸 Geroy zarbasi:"
+SORCERER_LAST_WORDS = "🧞‍♂️ Lekin Afsungar so'nggi so'zini aytishga ulguradi..."
+SORCERER_REVENGE_PROMPT = "🧞‍♂️ O'limingizdan oldin kimdan o'ch olmoqchisiz?"
+PREFIX_REVENGE = "🧞‍♂️ Afsungarning o'chi:"
+CONFIRM_PROMPT = (
+    "⚖️ Eng ko'p ovozni <b>{name}</b> oldi.\n"
+    "Uni rostdan ham osamizmi? 👍 — ha, 👎 — yo'q.\n"
+    "⏳ {seconds} soniya vaqt bor."
+)
+CONFIRM_REJECTED = "🙅 Ovozlar: 👍 {likes} | 👎 {dislikes}\n<b>{name}</b> omon qoldi — bugun hech kim osilmadi."
+DAY_BANNER = "🌅 <b>Xayrli tong!</b>\n☀️ Kun: {n}\nShamollar tundagi mish-mishlarni butun shaharga yetkazmoqda.."
+DISCUSSION_TIME_LEFT = "⏳ Muhokama tugashiga {seconds} soniya qoldi."
+VOTING_STARTED = (
+    "🗳 <b>Ovoz berish boshlandi!</b>\nHar bir o'yinchi ovozini shaxsiy xabarda beradi.\n"
+    "⏳ {seconds} soniya vaqt bor."
+)
+VOTE_PROMPT = "🗳 Kimni shahardan haydab chiqarmoqchisiz?"
+VOTE_SKIP_BUTTON = "🚫 Ovoz bermaslik"
+VOTE_SKIP_NAME = "Ovoz bermaslik"
+VOTE_SHIELD_SAVED = "⚖️ {name} eng ko'p ovoz oldi, lekin Ovozdan himoya buyumi tufayli omon qoldi!"
+ELIMINATED = "⚖️ Shahar ovoz berdi: <b>{name}</b> haydab chiqarildi.{role}"
+NOBODY_ELIMINATED = "⚖️ Ovozlar teng bo'ldi yoki hech kim ovoz bermadi — bugun hech kim haydalmadi."
+TOWN_WIN_RESULT = "🎉 <b>Tinch aholi g'alaba qozondi!</b> Barcha mafiyalar tutildi."
+MAFIA_WIN_RESULT = "🔪 <b>Mafiya g'alaba qozondi!</b> Shahar ularning qo'liga o'tdi."
+GAME_OVER = "🏁 <b>O'yin tugadi!</b>"
+WINNERS_HEADER = "<b>G'oliblar:</b>"
+OTHERS_HEADER = "<b>Qolgan o'yinchilar:</b>"
+DEAD_MARK = " (⚰️ halok)"
+GAME_DURATION = "⏱ O'yin: {minutes} daqiqa davom etdi"
+RANKING_HINT = "🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik), /top30 (oylik)"
+GAME_ERROR = "⚠️ O'yinda kutilmagan xatolik yuz berdi, o'yin to'xtatildi."
+RIFLE_ON = "🔫 Miltiq bilan otish: YONIQ ✅"
+RIFLE_OFF = "🔫 Miltiq bilan otish: O'CHIQ"
+PAYOUT_ROLE_LINE = "🎭 Rolingiz: {role} ({status})"
+PAYOUT_ALIVE = "🟢 tirik"
+PAYOUT_DEAD = "⚰️ halok"
+PAYOUT_TOTALS = "💰 +{dollars}💵  🏅 +{points} ball{note}"
+
+# Buyum nomlari (economy.ITEMS kalitlari bo'yicha)
+ITEM_NAMES = {
+    "shield": "Himoya",
+    "fake_doc": "Soxta hujjat",
+    "vote_shield": "Ovozdan himoya",
+    "rifle": "Miltiq",
+    "mirror": "Sehrli oyna",
+    "killer_shield": "Qotildan himoya",
+    "poison_shield": "Doridan himoya",
+    "mask": "Maska",
+    "hero_immunity": "Geroydan himoya",
+}
+
+# ---------- Ro'yxat (lobby) ----------
+LOBBY_TEXT = (
+    "🎭 <b>{brand}</b>\n\n"
+    "<b>Ro'yxatdan o'tish boshlandi</b>\n\n"
+    "Ro'yxatdan o'tganlar:\n{names}\n\n"
+    "Jami {count}ta odam. (kamida {min_players} kerak)\n\n"
+    "▶️ Boshlash tugmasini faqat o'yin egasi yoki guruh adminlari bosa oladi."
+)
+LOBBY_JOIN_BUTTON = "🤵‍♂️🤵‍♀️ Qo'shilish"
+LOBBY_START_BUTTON = "▶️ Boshlash"
+ROLE_YOURS = "🎭 Sizning rolingiz: <b>{role}</b>"
+TEAMMATES_LINE = "Sherik mafiyalar: {names}"
+HITMAN_CONTRACT_LINE = "🎯 Sizning maxfiy buyurtma nishoningiz: <b>{name}</b>"
+JOIN_PROBE = "✅ Siz Mafiya o'yiniga qo'shildingiz! O'yin boshlanganda rolingiz shu yerga yuboriladi."
+GAME_ALREADY_RUNNING = "Bu guruhda allaqachon o'yin ketyapti yoki ro'yxat ochiq."
+IN_OTHER_GAME = "Siz allaqachon boshqa o'yinda ishtirok etyapsiz."
+START_BOT_FIRST = "Avval botga shaxsiy xabar yozib, /start bosing, so'ng qayta urinib ko'ring: https://t.me/{bot}"
+GROUP_ONLY_COMMAND = "Bu buyruq faqat guruhda ishlaydi. Botni guruhga qo'shing va shu yerda ishga tushiring."
+GAME_ALREADY_STARTED = "Bu guruhda o'yin allaqachon boshlangan. U tugagach /start bosib yangisini oching."
+ALREADY_REGISTERED = "Siz allaqachon ro'yxatdasiz. O'yin tez orada boshlanadi!"
+LOBBY_OPEN_JOIN = "🎮 Bu guruhda o'yin ro'yxati ochiq! Qo'shilish uchun tugmani bosing:"
+NO_ACTIVE_GAME = "Bu guruhda faol o'yin yo'q."
+STOP_ADMIN_ONLY = "Faqat guruh adminlari o'yinni to'xtata oladi."
+GAME_STOPPED = "🛑 O'yin to'xtatildi."
+LOBBY_CLOSED = "Ro'yxat yopiq."
+ALREADY_JOINED = "Siz allaqachon qo'shilgansiz."
+LOBBY_FULL = "Ro'yxat to'lgan."
+IN_OTHER_GAME_SHORT = "Siz boshqa o'yinda ishtirok etyapsiz."
+JOINED = "Qo'shildingiz! ✅"
+GAME_ALREADY_STARTING = "O'yin allaqachon boshlanmoqda."
+START_OWNER_ONLY = "Faqat o'yin egasi yoki guruh adminlari boshlashi mumkin."
+MIN_PLAYERS_NEEDED = "Kamida {count} o'yinchi kerak."
+GAME_STARTING = "O'yin boshlanmoqda... ▶️"
+BACK_TO_GROUP = "⬅️ Guruhga qaytish"
+GAME_STARTED = "🎮 O'yin boshlandi! Rollar shaxsiy xabarlarga yuborildi."
+
+# ---------- Bozor ----------
+MARKET_SELL_USAGE = (
+    "Foydalanish: /sell &lt;miqdor&gt; &lt;valyuta&gt; &lt;narx&gt; &lt;narx_valyutasi&gt;\n"
+    "Masalan: /sell 100 coin 5000 dollar"
+)
+MARKET_NOT_NUMBER = "Miqdor va narx butun son bo'lishi kerak."
+MARKET_BAD_CURRENCY = "Valyuta noto'g'ri. Mavjud: dollar, diamond (olmos), coin"
+MARKET_SAME_CURRENCY = "Ikki xil valyuta tanlang."
+MARKET_NOT_POSITIVE = "Miqdor musbat bo'lishi kerak."
+NOT_ENOUGH_BALANCE = "Balansingizda yetarli {emoji} yo'q."
+MARKET_LISTED = "✅ E'lon joylandi (#{id}): {sell} → {price}\nBekor qilish uchun: /cancel {id}"
+MARKET_CANCEL_USAGE = "Foydalanish: /cancel &lt;e'lon raqami&gt;"
+MARKET_NOT_YOURS = "Bu e'lon sizga tegishli emas."
+MARKET_ALREADY_CLOSED = "Bu e'lon allaqachon yopilgan."
+MARKET_CANCELLED = "❌ E'lon #{id} bekor qilindi, {amount} qaytarildi."
+MARKET_NO_LISTINGS_MINE = "Sizda faol e'lonlar yo'q."
+MARKET_MY_LISTINGS = "<b>Sizning faol e'lonlaringiz:</b>"
+MARKET_EMPTY = "Bozorda hozircha hech narsa yo'q."
+MARKET_TITLE = "🛒 <b>BOZOR</b>"
+MARKET_BUY_BUTTON = "🛒 #{id} sotib olish"
+MARKET_GONE = "Bu e'lon endi mavjud emas."
+MARKET_OWN = "O'z e'loningizni sotib ololmaysiz."
+MARKET_SOLD_TO_OTHER = "Bu e'lonni boshqa birov sotib oldi."
+MARKET_BOUGHT = "Xarid muvaffaqiyatli! ✅"
+MARKET_SOLD_MARK = "✅ #{id} sotildi."
+MARKET_SOLD_NOTICE = "💰 E'loningiz #{id} sotildi: {sell} → {price} hisobingizga qo'shildi."
+
+# ---------- Buyumlar do'koni va sumka ----------
+STORE_TEXT = (
+    "🎒 <b>BUYUMLAR DO'KONI</b>\n"
+    "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. Sotib olingan buyum avtomatik "
+    "yoniq (YONIQ) holatda bo'ladi — /sumka orqali o'chirib qo'yishingiz mumkin.\n\n"
+    "{rule}\n\nKerakli buyumni tanlang:"
+)
+ITEM_NOT_FOUND = "Bu buyum topilmadi."
+ITEM_PRICE_LINE = "{emoji} <b>{name}</b> — {price} (1 dona)"
+ITEM_HOW_MANY = "Nechta sotib olmoqchisiz?"
+QUANTITY_BUTTON = "{qty} ta"
+BACK_BUTTON = "⬅️ Orqaga"
+ITEM_BOUGHT_ALERT = "✅ {qty} ta {emoji} {name} sotib olindi!"
+ITEM_BOUGHT = "✅ Xarid qilindi: {qty} ta {emoji} {name} (-{price})"
+INVENTORY_EMPTY = "🎒 Sizda hali hech qanday buyum yo'q.\n\n/dokon orqali sotib olishingiz mumkin."
+INVENTORY_TITLE = "🎒 <b>MENING BUYUMLARIM</b>"
+ITEM_STATE_ON = "🟢 YONIQ"
+ITEM_STATE_OFF = "🔴 O'CHIQ"
+INVENTORY_LINE = "{emoji} {name}: {count} ta — {state}"
+ITEM_TURN_OFF = "O'chirish"
+ITEM_TURN_ON = "Yoqish"
+ITEM_NOT_OWNED = "Bu buyum sizda yo'q."
+ITEM_ENABLED = "Yoqildi ✅"
+ITEM_DISABLED = "O'chirildi"
+
+# ---------- Profil va admin ----------
+PROFILE_TEXT = (
+    "👤 <b>{name}</b>\n"
+    "🆔 ID: <code>{user_id}</code>\n\n"
+    "💵 Dollar: {dollars}\n"
+    "💎 Olmos: {diamonds}\n"
+    "🪙 Coin: {coins}\n\n"
+    "🏅 Ball — kunlik: {daily} | haftalik: {weekly} | oylik: {monthly} | jami: {total}\n\n"
+    "🦸 Geroy: {hero}\n\n"
+    "🎒 <b>Buyumlar:</b>"
+)
+PROFILE_HERO_LEVEL = "{level}-daraja"
+PROFILE_HERO_NONE = "yo'q (/geroy)"
+PROFILE_ITEM_LINE = "{emoji} {name}: {count} ta"
+PROFILE_GAMES = "🎮 O'yinlar: {games} | 🏆 G'alabalar: {wins}"
+PROFILE_TOGGLE_HINT = "⚙️ Buyumlarni yoqish/o'chirish uchun pastdagi tugmalarni bosing:"
+PROFILE_ITEM_ON = "🟢 ON"
+PROFILE_ITEM_OFF = "🔴 OFF"
+MAIN_MENU_BUTTON = "🏠 Bosh menyu"
+ADMIN_REPLY_USAGE = "Foydalanish: xabarga reply qiling va miqdorni yozing, masalan /addcash 1000"
+ADMIN_USAGE = "Foydalanish: /addcash &lt;user_id&gt; &lt;miqdor&gt; yoki xabarga reply qilib /addcash &lt;miqdor&gt;"
+ADMIN_BALANCE_ADDED = "✅ {amount}{emoji} balansga qo'shildi (user_id={user_id})."
+
+# ---------- Geroy ----------
+HERO_INTRO = (
+    "🦸 <b>GEROY</b>\n\n"
+    "Geroy — bir marta sotib olinadigan va profilingizda umrbod qoladigan maxsus buyum.\n"
+    "Darajasini cheksiz oshirish mumkin.\n\n"
+    "🎭 Mafiya, Don yoki Komissar bo'lib qolgan o'yinlarda tongda nishonni otish huquqi beradi "
+    "(bir o'yinda 1 marta).\n"
+    "🔓 {bypass}-darajadan boshlab zarbangiz HAR QANDAY himoyani chetlab o'tadi.\n\n"
+    "Narxi: {price}💎"
+)
+HERO_BUY_BUTTON = "🦸 Sotib olish — {price}💎"
+HERO_BYPASS_ACTIVE = "🔓 Zarbangiz har qanday himoyani chetlab o'tadi!"
+HERO_BYPASS_LOCKED = "🔒 {level}-darajaga yetganda zarbangiz har qanday himoyani chetlab o'tadi."
+HERO_STATUS = "🦸 <b>GEROY</b>\n\nJoriy darajangiz: <b>{level}</b>\n{bypass}\n\nDarajani oshirish narxi: {price}💎"
+HERO_LEVELUP_BUTTON = "⬆️ Darajani oshirish — {price}💎"
+HERO_ALREADY_OWNED = "Sizda allaqachon Geroy bor."
+NOT_ENOUGH_DIAMONDS = "Balansingizda yetarli 💎 yo'q."
+HERO_BOUGHT = "✅ Geroy sotib olindi!"
+HERO_BUY_FIRST = "Avval Geroyni sotib oling."
+HERO_LEVELED_UP = "✅ Geroy {level}-darajaga o'tdi!"
+
+# ---------- Karta orqali olmos xaridi ----------
+SHOP_CARD_BUTTON = "{diamonds}💎 — {price} so'm"
+PACKAGE_NOT_FOUND = "Bu paket topilmadi."
+CARD_ORDER_TEXT = (
+    "💎 <b>{diamonds} Olmos xaridi</b>\n\n"
+    "To'lov summasi: <b>{price} so'm</b>\n\n"
+    "Karta raqami: <code>{card}</code>\n"
+    "Karta egasi: {holder}\n\n"
+    "⚠️ <b>DIQQAT!</b> To'lovni amalga oshirayotganda <b>IZOH</b> qismiga "
+    "faqat ushbu buyurtma raqamini yozing:\n\n<code>#{order_id}</code>\n\n"
+    "To'lov qilgach kuting — administrator tekshirib, olmoslarni hisobingizga qo'shadi."
+)
+CARD_ORDER_RECEIPT = (
+    "\n\n🧾 To'lovdan so'ng <b>chekni (skrinshot)</b> buyurtma raqami "
+    "<code>#{order_id}</code> bilan birga @{contact} ga yuboring."
+)
+CARD_RECEIPT_BUTTON = "🧾 Chekni yuborish"
+CARD_APPROVE_BUTTON = "✅ Tasdiqlash"
+CARD_REJECT_BUTTON = "❌ Rad etish"
+CARD_ADMIN_ORDER = (
+    "🧾 <b>Yangi buyurtma #{order_id}</b>\n"
+    "Foydalanuvchi: {name} (id=<code>{user_id}</code>)\n"
+    "Paket: {diamonds}💎 — {price} so'm\n\n"
+    "To'lov tushganini tekshirib, tugmalardan birini bosing."
+)
+NOT_FOR_YOU = "Bu tugma siz uchun emas."
+ORDER_NOT_FOUND = "Buyurtma topilmadi."
+ORDER_ALREADY_REVIEWED = "Bu buyurtma allaqachon ko'rib chiqilgan."
+ORDER_APPROVED_ALERT = "Tasdiqlandi ✅"
+ORDER_APPROVED_MARK = "✅ Tasdiqlandi va olmos berildi."
+ORDER_APPROVED_USER = "✅ To'lovingiz tasdiqlandi! {diamonds}💎 hisobingizga qo'shildi."
+ORDER_REJECTED_ALERT = "Rad etildi ❌"
+ORDER_REJECTED_MARK = "❌ Rad etildi."
+ORDER_REJECTED_USER = "❌ Buyurtma #{order_id} rad etildi. Savol bo'lsa administratorga murojaat qiling."
+
+# ---------- Bosh menyu ----------
+MAIN_MENU_TEXT = (
+    "🎩 <b>Qorong'u shaharga xush kelibsiz!</b>\n\n"
+    "<i>Bu yerda oddiy qoidalar ishlamaydi. Do'stlik, xiyonat va intriga — "
+    "barchasi bir-biriga qorishib ketgan.</i>\n\n"
+    "🛡 <b>Tinch aholi</b> bo'lib shaharni qutqarasizmi yoki 🔪 <b>Mafiya</b> bo'lib "
+    "hammani yo'q qilasizmi?\n\n"
+    "Guruhga qo'shing va <code>/mafia</code> yozing yoki pastdagi tugmalardan foydalaning 👇"
+)
+MENU_ADD_TO_GROUP = "➕ Guruhingizga qo'shish"
+MENU_PROFILE = "👤 Mening profilim"
+MENU_STORE = "🛒 Do'kon"
+MENU_MARKET = "🛍 Bozor"
+MENU_SHOP = "💎 Olmos sotib olish"
+MENU_SEND_DOLLAR = "💸 Pul yuborish"
+MENU_SEND_DIAMOND = "💎 Olmos yuborish"
+MENU_HELP = "❓ Yordam"
+MENU_LANGUAGE = "🌐 Til / Язык"
+MENU_BACK = "⬅️ Bosh menyu"
+
+# ---------- Til tanlash ----------
+LANG_PROMPT = "🌐 Tilni tanlang / Тилни танланг / Выберите язык:"
+LANG_GROUP_PROMPT = "🌐 Guruh tilini tanlang (guruhdagi o'yin xabarlari shu tilda chiqadi):"
+LANG_SET = "✅ Til o'zgartirildi: {name}."
+LANG_GROUP_SET = "✅ Guruh tili o'zgartirildi: {name}. Yangi o'yindan boshlab ishlaydi."
+LANG_ADMIN_ONLY = "Guruh tilini faqat guruh adminlari o'zgartira oladi."
+
+# ---------- Pul / olmos yuborish ----------
+CURRENCY_LABELS = {"dollar": "Dollar 💵", "diamond": "Olmos 💎"}
+TRANSFER_START = (
+    "{currency} yubormoqchisiz.\n\n"
+    "Kimga yuborasiz? Qabul qiluvchining foydalanuvchi ID raqami yoki @username'ini yuboring.\n"
+    "(Qabul qiluvchi avval botga /start bosgan bo'lishi kerak.)"
+)
+TRANSFER_PRIVATE_ONLY = "💸 Pul/olmos yuborish faqat bot bilan shaxsiy chatda ishlaydi."
+TRANSFER_USER_NOT_FOUND = (
+    "Bunday foydalanuvchi topilmadi — u botga hali /start bosmagan bo'lishi mumkin.\n"
+    "Qaytadan ID yoki @username yuboring."
+)
+TRANSFER_SELF = "O'zingizga yubora olmaysiz. Boshqa foydalanuvchi ID/username yuboring."
+TRANSFER_ASK_AMOUNT = "Qabul qiluvchi: <b>{name}</b>\nEndi miqdorni kiriting (butun son):"
+TRANSFER_BAD_AMOUNT = "Miqdor musbat butun son bo'lishi kerak. Qaytadan kiriting:"
+TRANSFER_CONFIRM_BUTTON = "✅ Tasdiqlash"
+TRANSFER_CANCEL_BUTTON = "❌ Bekor qilish"
+TRANSFER_CONFIRM = "<b>{name}</b>ga {amount}{emoji} yubormoqchisiz. Tasdiqlaysizmi?"
+TRANSFER_CANCELLED_ALERT = "Bekor qilindi."
+TRANSFER_CANCELLED = "❌ Pul/olmos o'tkazish bekor qilindi."
+TRANSFER_NOT_ENOUGH = "Balansingiz yetarli emas."
+TRANSFER_SENT_ALERT = "Yuborildi ✅"
+TRANSFER_SENT = "✅ {name}ga {amount}{emoji} yuborildi."
+TRANSFER_RECEIVED = "💌 Sizga <b>{name}</b> tomonidan {amount}{emoji} yuborildi!"
+
+# ---------- Reyting ----------
+TOP_ALL_TITLE = "🏆 <b>Umumiy TOP (barcha o'yinlar)</b>"
+TOP_DAY_TITLE = "🕐 <b>Kunlik TOP</b> (bugun 00:00 — 23:59)"
+TOP_WEEK_TITLE = "📅 <b>Haftalik TOP</b> (dushanba — yakshanba)"
+TOP_MONTH_TITLE = "🗓 <b>Oylik TOP</b> (oyning 1-sanasidan)"
+TOP_EMPTY = "Hozircha ma'lumot yo'q."
+TOP_LINE = "{place}. {name} — {total} ball"
+
+# ---------- Kunduzgi ovoz ----------
+NOT_VOTING_TIME = "Hozir ovoz berish vaqti emas."
+NOT_IN_GAME_OR_DEAD = "Siz o'yinda emassiz yoki halok bo'lgansiz."
+PLAYER_NOT_AVAILABLE = "Bu o'yinchi mavjud emas."
+VOTE_ALREADY = "Ovozingiz allaqachon qabul qilingan."
+VOTE_ACCEPTED = "Ovozingiz qabul qilindi ✅"
+CONFIRM_SELF = "O'zingiz uchun ovoz bera olmaysiz."
+CONFIRM_YES = "👍 Ha"
+CONFIRM_NO = "👎 Yo'q"
+
+# ---------- Tungi tugmalar ----------
+NOT_NIGHT = "Hozir tun emas."
+NOT_DAWN = "Hozir tong emas."
+ALREADY_CHECKED = "Siz bu kecha allaqachon tekshirgansiz."
+ALREADY_POISONED = "Siz bu kecha allaqachon dori bergansiz."
+ALREADY_USED_ABILITY = "Siz bu imkoniyatdan allaqachon foydalangansiz."
+ALREADY_LEARNED = "Siz bu kecha allaqachon bilib olgansiz."
+ALREADY_CHOSEN = "Siz allaqachon tanlagansiz."
+ABILITY_GONE = "Bu imkoniyat endi mavjud emas."
+YOU_CHOSE_ALERT = "Siz {name}ni tanladingiz."
+YOU_PROTECT_ALERT = "Siz {name}ni himoya qilyapsiz."
+YOU_PROTECTED = "💉 Siz himoya qildingiz: {name}"
+YOU_POISONED_ALERT = "Siz {name}ga dori berdingiz."
+YOU_POISONED = "💊 Siz dori berdingiz: {name}"
+YOU_VISITED_ALERT = "Siz {name}ning oldiga bordingiz."
+YOU_VISITED = "🚶 Siz tashrif buyurdingiz: {name}"
+KILLER_CHOSEN = "🔪 Siz tanladingiz: {name}"
+HITMAN_CHOSEN = "🥷 Siz tanladingiz: {name}"
+LAWYER_CHOSEN = "👨‍💼 Siz himoya qildingiz: {name}"
+HERO_CHOSEN_ALERT = "Siz {name}ni otishga qaror qildingiz."
+HERO_CHOSEN = "🥷 Siz otishga qaror qildingiz: {name}"
+REVENGE_CHOSEN_ALERT = "O'ch: {name}"
+REVENGE_CHOSEN = "🧞‍♂️ O'ch tanlandi: {name}"
+RIFLE_TOGGLED_OFF = "Miltiq o'chirildi."
+RIFLE_TOGGLED_ON = "Miltiq yoqildi — himoyani bekor qiladi!"
+DETECTIVE_RESULT_MAFIA = "u — Mafiya a'zosi! 🔪"
+DETECTIVE_RESULT_CLEAN = "u — mafiya emas. ✅"
+DETECTIVE_RESULT = "🕵️ Tekshiruv natijasi: {name} — {result}"
+DON_RESULT_DETECTIVE = "u — Komissar! 🕵️"
+DON_RESULT_NOT = "u — komissar emas."
+DON_RESULT = "🎩 Aniqlash natijasi: {name} — {result}"
+H_SAME_TEAM = "bir jamoa"
+H_DIFF_TEAM = "turli jamoa"
+ANN_MAFIA_CHOSE = "🔪 Mafiya o'ljasini tanladi."
+ANN_DOCTOR = "💉 Doktor tungi navbatchilikka ketdi."
+ANN_DETECTIVE = "🕵️ Komissar tekshiruvini boshladi."
+ANN_KILLER = "🔪 Qotil nishonini tanladi."
+ANN_HITMAN = "🥷 Yollanma qotil nishonini tanladi."
+ANN_POISONER = "💊 Kezuvchi kimgadir dori berdi."
+ANN_WANDERER = "🚶 Daydi kimningdir oldiga bordi."
+ANN_DON = "🎩 Don o'z tekshiruvini o'tkazdi."
+ANN_LAWYER = "👨‍💼 Advokat o'z himoyasini tayinladi."
+ANN_BODYGUARD = "🛡 Tansoqchi navbatchilikka chiqdi."
+ANN_JOURNALIST = "📰 Jurnalist tekshiruv o'tkazdi."
+
+# ---------- Bot buyruqlari menyusi ----------
+BOT_COMMANDS = {
+    "mafia": "Yangi Mafiya o'yini boshlash (guruhda)",
+    "stop": "Joriy o'yinni to'xtatish",
+    "shop": "Olmos sotib olish",
+    "almashtir": "Olmos va Coinni Dollarga almashtirish",
+    "market": "Bozor — valyutalar savdosi",
+    "dokon": "Buyumlar do'koni (Himoya, Miltiq va h.k.)",
+    "sumka": "Mening buyumlarim (yoqish/o'chirish)",
+    "send": "Boshqa foydalanuvchiga Dollar yuborish",
+    "sendgem": "Boshqa foydalanuvchiga Olmos yuborish",
+    "profile": "Profilingiz (balans, statistika)",
+    "geroy": "Geroyni sotib olish / darajasini oshirish",
+    "top": "Umumiy reyting (barcha o'yinlar)",
+    "top1": "Kunlik reyting",
+    "top7": "Haftalik reyting",
+    "top30": "Oylik reyting",
+    "rollar": "Barcha rollar tavsifi",
+    "sozlamalar": "Guruh sozlamalari (adminlar uchun)",
+    "til": "Tilni tanlash / Выбор языка",
+    "help": "Yordam",
+    "support": "Yordam va aloqa",
+    "paysupport": "To'lovlar bo'yicha yordam",
+    "terms": "Foydalanish shartlari",
+}

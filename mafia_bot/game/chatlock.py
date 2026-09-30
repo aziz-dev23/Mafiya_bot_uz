@@ -10,7 +10,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import ChatPermissions
 
 import db
-import texts
+from i18n import get_texts
 
 from .models import Game
 
@@ -48,7 +48,7 @@ async def lock_chat(bot: Bot, game: Game) -> None:
         if game.chat_id not in _warned_chats:
             _warned_chats.add(game.chat_id)
             try:
-                await bot.send_message(game.chat_id, texts.CHAT_LOCK_NO_RIGHTS)
+                await bot.send_message(game.chat_id, get_texts(game.settings.lang).CHAT_LOCK_NO_RIGHTS)
             except (TelegramBadRequest, TelegramForbiddenError):
                 pass
 

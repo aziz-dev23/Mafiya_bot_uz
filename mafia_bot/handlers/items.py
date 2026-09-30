@@ -4,132 +4,125 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
+import texts
 from economy import CURRENCY_COLUMN, CURRENCY_EMOJI, ITEMS
-from texts import ITEM_DESCRIPTIONS, ITEM_STORE_RULE
 
 router = Router(name="items")
-
-
-def _item_line(key: str) -> str:
-    item = ITEMS[key]
-    return f"{item['emoji']} {item['name']} — {item['price']}{CURRENCY_EMOJI[item['currency']]}"
-
-
-def build_store_keyboard() -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text=_item_line(key), callback_data=f"buyitem:{key}")] for key in ITEMS]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
 
 QUANTITY_OPTIONS = (1, 3, 5, 10)
 
 
-def build_quantity_keyboard(key: str) -> InlineKeyboardMarkup:
+def _price(key: str, qty: int = 1) -> str:
+    item = ITEMS[key]
+    return f"{item['price'] * qty}{CURRENCY_EMOJI[item['currency']]}"
+
+
+def store_text(L=texts) -> str:
+    return L.STORE_TEXT.format(rule=L.ITEM_STORE_RULE)
+
+
+def build_store_keyboard(L=texts) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"{ITEMS[key]['emoji']} {L.ITEM_NAMES[key]} — {_price(key)}", callback_data=f"buyitem:{key}"
+            )
+        ]
+        for key in ITEMS
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_quantity_keyboard(key: str, L=texts) -> InlineKeyboardMarkup:
     row = [
-        InlineKeyboardButton(text=f"{qty} ta", callback_data=f"buyitem_qty:{key}:{qty}")
+        InlineKeyboardButton(text=L.QUANTITY_BUTTON.format(qty=qty), callback_data=f"buyitem_qty:{key}:{qty}")
         for qty in QUANTITY_OPTIONS
     ]
     return InlineKeyboardMarkup(
-        inline_keyboard=[row, [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="buyitem_back")]]
+        inline_keyboard=[row, [InlineKeyboardButton(text=L.BACK_BUTTON, callback_data="buyitem_back")]]
     )
 
 
 @router.message(Command("dokon", "items"))
-async def cmd_store(message: Message) -> None:
+async def cmd_store(message: Message, L=texts) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    await message.answer(
-        "🎒 <b>BUYUMLAR DO'KONI</b>\n"
-        "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
-        "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi — "
-        "/sumka orqali o'chirib qo'yishingiz mumkin.\n\n"
-        f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
-        reply_markup=build_store_keyboard(),
-    )
+    await message.answer(store_text(L), reply_markup=build_store_keyboard(L))
 
 
 @router.callback_query(F.data.startswith("buyitem:"))
-async def on_buy_item(callback: CallbackQuery) -> None:
+async def on_buy_item(callback: CallbackQuery, UL=texts) -> None:
     key = callback.data.split(":", 1)[1]
     item = ITEMS.get(key)
     if not item:
-        await callback.answer("Bu buyum topilmadi.", show_alert=True)
+        await callback.answer(UL.ITEM_NOT_FOUND, show_alert=True)
         return
 
     await callback.answer()
     try:
         await callback.message.edit_text(
-            f"{item['emoji']} <b>{item['name']}</b> — {item['price']}{CURRENCY_EMOJI[item['currency']]}/dona\n"
-            f"<i>{ITEM_DESCRIPTIONS.get(key, '')}</i>\n\n"
-            "Nechta sotib olmoqchisiz?",
-            reply_markup=build_quantity_keyboard(key),
+            UL.ITEM_PRICE_LINE.format(emoji=item["emoji"], name=UL.ITEM_NAMES[key], price=_price(key)) + "\n"
+            f"<i>{UL.ITEM_DESCRIPTIONS.get(key, '')}</i>\n\n" + UL.ITEM_HOW_MANY,
+            reply_markup=build_quantity_keyboard(key, UL),
         )
     except TelegramBadRequest:
         pass
 
 
 @router.callback_query(F.data == "buyitem_back")
-async def on_buy_item_back(callback: CallbackQuery) -> None:
+async def on_buy_item_back(callback: CallbackQuery, UL=texts) -> None:
     await callback.answer()
     try:
-        await callback.message.edit_text(
-            "🎒 <b>BUYUMLAR DO'KONI</b>\n"
-            "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. "
-            "Sotib olingan buyum avtomatik yoniq (YONIQ) holatda bo'ladi.\n\n"
-            f"{ITEM_STORE_RULE}\n\nKerakli buyumni tanlang:",
-            reply_markup=build_store_keyboard(),
-        )
+        await callback.message.edit_text(store_text(UL), reply_markup=build_store_keyboard(UL))
     except TelegramBadRequest:
         pass
 
 
 @router.callback_query(F.data.startswith("buyitem_qty:"))
-async def on_buy_item_qty(callback: CallbackQuery) -> None:
+async def on_buy_item_qty(callback: CallbackQuery, UL=texts) -> None:
     parts = callback.data.split(":")
     item = ITEMS.get(parts[1]) if len(parts) == 3 else None
     # Faqat tugmalardagi miqdorlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
     if not item or not parts[2].isdigit() or int(parts[2]) not in QUANTITY_OPTIONS:
-        await callback.answer("Bu buyum topilmadi.", show_alert=True)
+        await callback.answer(UL.ITEM_NOT_FOUND, show_alert=True)
         return
     key, qty = parts[1], int(parts[2])
 
     await db.ensure_user(callback.from_user.id, callback.from_user.full_name, callback.from_user.username)
     col = CURRENCY_COLUMN[item["currency"]]
-    total_price = item["price"] * qty
-    if not await db.spend_balance(callback.from_user.id, col, total_price):
-        await callback.answer(f"Balansingizda yetarli {CURRENCY_EMOJI[item['currency']]} yo'q.", show_alert=True)
+    if not await db.spend_balance(callback.from_user.id, col, item["price"] * qty):
+        await callback.answer(UL.NOT_ENOUGH_BALANCE.format(emoji=CURRENCY_EMOJI[item["currency"]]), show_alert=True)
         return
 
     await db.add_item(callback.from_user.id, key, qty)
 
-    await callback.answer(f"✅ {qty} ta {item['emoji']} {item['name']} sotib olindi!")
+    name = UL.ITEM_NAMES[key]
+    await callback.answer(UL.ITEM_BOUGHT_ALERT.format(qty=qty, emoji=item["emoji"], name=name))
     try:
         await callback.message.edit_text(
-            f"✅ Xarid qilindi: {qty} ta {item['emoji']} {item['name']} "
-            f"(-{total_price}{CURRENCY_EMOJI[item['currency']]})"
+            UL.ITEM_BOUGHT.format(qty=qty, emoji=item["emoji"], name=name, price=_price(key, qty))
         )
     except TelegramBadRequest:
         pass
 
 
-def build_inventory_text_and_keyboard(rows) -> tuple[str, InlineKeyboardMarkup]:
+def build_inventory_text_and_keyboard(rows, L=texts) -> tuple[str, InlineKeyboardMarkup]:
     if not rows:
-        return (
-            "🎒 Sizda hali hech qanday buyum yo'q.\n\n/dokon orqali sotib olishingiz mumkin.",
-            InlineKeyboardMarkup(inline_keyboard=[]),
-        )
+        return L.INVENTORY_EMPTY, InlineKeyboardMarkup(inline_keyboard=[])
 
-    lines = ["🎒 <b>MENING BUYUMLARIM</b>", ""]
+    lines = [L.INVENTORY_TITLE, ""]
     buttons = []
     for row in rows:
-        item = ITEMS.get(row["item_key"])
+        key = row["item_key"]
+        item = ITEMS.get(key)
         if not item:
             continue
-        state = "🟢 YONIQ" if row["enabled"] else "🔴 O'CHIQ"
-        lines.append(f"{item['emoji']} {item['name']}: {row['count']} ta — {state}")
+        state = L.ITEM_STATE_ON if row["enabled"] else L.ITEM_STATE_OFF
+        lines.append(L.INVENTORY_LINE.format(emoji=item["emoji"], name=L.ITEM_NAMES[key], count=row["count"], state=state))
+        action = L.ITEM_TURN_OFF if row["enabled"] else L.ITEM_TURN_ON
         buttons.append(
             [
                 InlineKeyboardButton(
-                    text=f"{item['emoji']} {item['name']}: {'O`chirish' if row['enabled'] else 'Yoqish'}",
-                    callback_data=f"toggleitem:{row['item_key']}",
+                    text=f"{item['emoji']} {L.ITEM_NAMES[key]}: {action}", callback_data=f"toggleitem:{key}"
                 )
             ]
         )
@@ -137,28 +130,28 @@ def build_inventory_text_and_keyboard(rows) -> tuple[str, InlineKeyboardMarkup]:
 
 
 @router.message(Command("sumka", "inventory"))
-async def cmd_inventory(message: Message) -> None:
+async def cmd_inventory(message: Message, L=texts) -> None:
     await db.ensure_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
     rows = await db.get_inventory(message.from_user.id)
-    text, kb = build_inventory_text_and_keyboard(rows)
+    text, kb = build_inventory_text_and_keyboard(rows, L)
     await message.answer(text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("toggleitem:"))
-async def on_toggle_item(callback: CallbackQuery) -> None:
+async def on_toggle_item(callback: CallbackQuery, UL=texts) -> None:
     key = callback.data.split(":", 1)[1]
     rows = await db.get_inventory(callback.from_user.id)
     row = next((r for r in rows if r["item_key"] == key), None)
     if not row:
-        await callback.answer("Bu buyum sizda yo'q.", show_alert=True)
+        await callback.answer(UL.ITEM_NOT_OWNED, show_alert=True)
         return
 
     new_state = not bool(row["enabled"])
     await db.set_item_enabled(callback.from_user.id, key, new_state)
-    await callback.answer("Yoqildi ✅" if new_state else "O'chirildi")
+    await callback.answer(UL.ITEM_ENABLED if new_state else UL.ITEM_DISABLED)
 
     rows = await db.get_inventory(callback.from_user.id)
-    text, kb = build_inventory_text_and_keyboard(rows)
+    text, kb = build_inventory_text_and_keyboard(rows, UL)
     try:
         await callback.message.edit_text(text, reply_markup=kb)
     except TelegramBadRequest:
