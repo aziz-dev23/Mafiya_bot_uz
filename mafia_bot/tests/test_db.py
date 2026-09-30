@@ -68,7 +68,9 @@ class WeeklyRewardTest(DbTestCase):
         diamonds = {uid: (await db.get_user(uid))["diamonds"] for uid in (1, 2, 3, 4)}
         self.assertEqual(diamonds, {2: WEEKLY_REWARD_DIAMONDS[0], 1: WEEKLY_REWARD_DIAMONDS[1],
                                     4: WEEKLY_REWARD_DIAMONDS[2], 3: 0})
-        self.assertEqual(bot.send_message.await_count, 3)
+        self.assertEqual(bot.send_message.await_count, 4)  # 3 ta mukofot + chempion xabari
+        self.assertIn("weekly_champion", await db.owned_cosmetics(2))
+        self.assertEqual((await db.active_cosmetics(2)).get("title"), "weekly_champion")
 
 
 class TransferTest(DbTestCase):

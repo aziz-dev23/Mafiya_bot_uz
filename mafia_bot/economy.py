@@ -115,6 +115,115 @@ WEEKLY_REWARD_DIAMONDS = (10, 5, 3)
 TRANSFER_MIN_GAMES = 20
 TRANSFER_DAILY_LIMITS = {"dollar": 5000, "diamond": 50}
 
+# ---------- 🎨 Kosmetika (doimiy, o'yinga ta'sir qilmaydi) ----------
+# Turlar: unvon (ism oldidan), o'lim uslubi (guruhdagi o'lim xabari), profil ramkasi (/profile bezagi).
+# Har turdan bir vaqtda bittasi faol. price=None — do'konda sotilmaydi (to'plam, mavsum, guruh, chempion).
+# Nomlar, o'lim matnlari va ramka qatorlari texts.py dagi COSMETIC_NAMES / DEATH_STYLES / FRAME_LINES da.
+TITLE = "title"
+DEATH_STYLE = "death"
+FRAME = "frame"
+COSMETIC_KINDS = (TITLE, DEATH_STYLE, FRAME)
+# Unvon matnining ko'pi bilan uzunligi (emoji bilan birga, test tekshiradi).
+TITLE_MAX_LENGTH = 16
+
+COSMETICS = [
+    # key, turi, narxi, valyutasi
+    {"key": "night_guard", "kind": TITLE, "price": 150, "currency": "coin"},
+    {"key": "orator", "kind": TITLE, "price": 3000, "currency": "dollar"},
+    {"key": "old_fox", "kind": TITLE, "price": 15, "currency": "diamond"},
+    {"key": "owl", "kind": TITLE, "price": 15, "currency": "diamond"},
+    {"key": "cold_blooded", "kind": TITLE, "price": 30, "currency": "diamond"},
+    {"key": "trickster", "kind": TITLE, "price": 30, "currency": "diamond"},
+    {"key": "eagle_eye", "kind": TITLE, "price": 30, "currency": "diamond"},
+    {"key": "shadow", "kind": TITLE, "price": 60, "currency": "diamond"},
+    {"key": "legendary", "kind": TITLE, "price": 60, "currency": "diamond"},
+    {"key": "newcomer", "kind": TITLE, "price": None, "currency": None},  # 🌱 boshlang'ich to'plamdan
+    {"key": "weekly_champion", "kind": TITLE, "price": None, "currency": None},  # /top7 1-o'rin, 1 hafta
+    {"key": "rose", "kind": DEATH_STYLE, "price": 25, "currency": "diamond"},
+    {"key": "curtain", "kind": DEATH_STYLE, "price": 25, "currency": "diamond"},
+    {"key": "ghost", "kind": DEATH_STYLE, "price": 40, "currency": "diamond"},
+    {"key": "lightning", "kind": DEATH_STYLE, "price": 40, "currency": "diamond"},
+    {"key": "stars_frame", "kind": FRAME, "price": 20, "currency": "diamond"},
+    {"key": "ice_frame", "kind": FRAME, "price": 30, "currency": "diamond"},
+    {"key": "fire_frame", "kind": FRAME, "price": 50, "currency": "diamond"},
+    # Mavsumiy narsalar (faqat mavsum chiptasi orqali, keyin sotilmaydi).
+    {"key": "s1_title", "kind": TITLE, "price": None, "currency": None},
+    {"key": "s1_death", "kind": DEATH_STYLE, "price": None, "currency": None},
+    {"key": "s1_frame", "kind": FRAME, "price": None, "currency": None},
+]
+COSMETICS_BY_KEY = {c["key"]: c for c in COSMETICS}
+WEEKLY_CHAMPION_TITLE = "weekly_champion"
+# Chempion unvoni shuncha soniya amal qiladi (keyingi hafta davomida).
+WEEKLY_CHAMPION_SECONDS = 7 * 24 * 3600
+
+# ---------- 🎟 Mavsum chiptasi ----------
+# Mavsum har oyning 1-kuni 00:00 (Toshkent) boshlanib, oyning oxirgi kuni tugaydi.
+# 1-mavsum shu oydan boshlanadi (yil, oy); keyingilari ketma-ket raqamlanadi.
+SEASON_FIRST_MONTH = (2026, 11)
+SEASON_PREMIUM_PRICE_DIAMONDS = 50
+SEASON_XP_WIN = 3
+SEASON_XP_LOSE = 1
+SEASON_XP_FIRST_GAME_BONUS = 2
+SEASON_XP_MIN_PLAYERS = 6
+SEASON_MAX_LEVEL = 30
+SEASON_REMINDER_DAYS_BEFORE_END = 3
+# Mavsum raqami -> mavsumiy kosmetika kalitlari (nomi texts.SEASON_NAMES da).
+SEASON_COSMETICS = {
+    1: {"title": "s1_title", "death": "s1_death", "frame": "s1_frame"},
+}
+
+
+def season_level_cost(level: int) -> int:
+    """level-darajaga yetish uchun kerak bo'lgan XP (oldingi darajadan)."""
+    if level <= 10:
+        return 5
+    if level <= 20:
+        return 7
+    return 9
+
+
+def season_level_for_xp(xp: int) -> int:
+    level, need = 0, 0
+    while level < SEASON_MAX_LEVEL:
+        need += season_level_cost(level + 1)
+        if xp < need:
+            break
+        level += 1
+    return level
+
+
+def season_xp_for_level(level: int) -> int:
+    """Shu darajaga yetish uchun jami kerak bo'ladigan XP."""
+    return sum(season_level_cost(n) for n in range(1, level + 1))
+
+
+# Mukofot: ("dollar"|"coin"|"diamond", miqdor), ("item", buyum_kaliti, soni), ("cosmetic", "title"|"death"|"frame").
+def season_free_rewards(level: int) -> list[tuple]:
+    rewards = [("dollar", 100)] if level % 2 else [("coin", 10)]
+    if level in (10, 20, 30):
+        rewards.append(("item", "shield", 1))
+    return rewards
+
+
+def season_premium_rewards(level: int) -> list[tuple]:
+    if level % 5 == 0:
+        rewards = [("diamond", 10)]
+    elif level in (3, 13, 23):
+        rewards = [("item", "shield", 2)]
+    elif level in (7, 17):
+        rewards = [("item", "poison_shield", 1)]
+    elif level == 27:
+        rewards = [("item", "mask", 1)]
+    elif level == 12:
+        rewards = [("cosmetic", "title")]
+    elif level == 22:
+        rewards = [("cosmetic", "death")]
+    else:
+        rewards = [("coin", 20)]
+    if level == 30:
+        rewards.append(("cosmetic", "frame"))
+    return rewards
+
 CURRENCY_COLUMN = {"dollar": "dollars", "diamond": "diamonds", "coin": "coins"}
 CURRENCY_EMOJI = {"dollar": "💵", "diamond": "💎", "coin": "🪙"}
 CURRENCY_ALIASES = {
@@ -215,5 +324,21 @@ async def payout_game_results(game: Game, winner: str) -> list[tuple[int, str]]:
             + outcome_line + "\n"
             + L.PAYOUT_TOTALS.format(dollars=total, points=points, note=note)
         )
+        text += await _season_lines(p.user_id, won, len(game.players), L)
         private_messages.append((p.user_id, text))
     return private_messages
+
+
+async def _season_lines(user_id: int, won: bool, player_count: int, L) -> str:
+    """🎟 Mavsum XP'si (AFK bo'lmaganlar uchun) va yetilgan darajalar mukofoti."""
+    import season
+
+    result = await season.award_game_xp(user_id, won, player_count)
+    if not result:
+        return ""
+    xp, level, rewards = result
+    text = "\n" + L.SEASON_XP_LINE.format(xp=xp, level=level)
+    if rewards:
+        current = season.current_season()
+        text += "\n" + L.SEASON_REWARDS_GOT.format(rewards=", ".join(season.reward_text(r, current, L) for r in rewards))
+    return text

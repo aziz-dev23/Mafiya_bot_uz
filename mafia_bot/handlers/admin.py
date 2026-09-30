@@ -3,12 +3,13 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+import cosmetics
 import db
 import texts
 from config import ADMIN_IDS
 from game.models import Role
-from economy import ITEMS
-from utils import esc, hero_badge
+from economy import FRAME, ITEMS, TITLE
+from utils import esc
 
 router = Router(name="admin")
 
@@ -22,10 +23,11 @@ async def build_profile_view(
     hero_level = await db.get_hero_level(user_id)
     inventory_rows = await db.get_inventory(user_id)
     inventory_by_key = {row["item_key"]: row for row in inventory_rows}
+    active = await cosmetics.active(user_id)
 
     lines = [
         L.PROFILE_TEXT.format(
-            name=esc(full_name) + hero_badge(hero_level), user_id=user_id,
+            name=cosmetics.display_name(esc(full_name), L, active.get(TITLE), hero_level), user_id=user_id,
             dollars=user_row["dollars"], diamonds=user_row["diamonds"], coins=user_row["coins"],
             daily=points["daily"], weekly=points["weekly"], monthly=points["monthly"], total=points["total"],
             hero=L.PROFILE_HERO_LEVEL.format(level=hero_level) if hero_level else L.PROFILE_HERO_NONE,
@@ -73,11 +75,36 @@ async def build_profile_view(
         )
     buttons.append([InlineKeyboardButton(text=L.MAIN_MENU_BUTTON, callback_data="menu:back")])
 
-    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)
+    return _framed("\n".join(lines), active.get(FRAME), L), InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def _framed(text: str, frame_key: str | None, L) -> str:
+    """Profil ramkasi: matnning tepasi va pastidagi bezak qator."""
+    line = cosmetics.frame_line(frame_key, L)
+    return f"{line}\n{text}\n{line}" if line else text
+
+
+async def build_public_profile(user_id: int, L=texts) -> str:
+    """Ochiq profil (reply orqali): unvon, ramka, 🦸, o'yinlar, g'alabalar, /top o'rni. Balans va buyumlar yo'q."""
+    user_row = await db.get_user(user_id)
+    if not user_row:
+        return L.PUBLIC_PROFILE_UNKNOWN
+    active = await cosmetics.active(user_id)
+    rank = await db.points_rank(user_id)
+    text = L.PUBLIC_PROFILE.format(
+        name=cosmetics.display_name(esc(user_row["full_name"]), L, active.get(TITLE), await db.get_hero_level(user_id)),
+        games=user_row["games"], wins=user_row["wins"],
+        place=rank[0] if rank else L.PUBLIC_PROFILE_NO_RANK,
+    )
+    return _framed(text, active.get(FRAME), L)
 
 
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, L=texts) -> None:
+    replied = message.reply_to_message
+    if replied and replied.from_user and not replied.from_user.is_bot and replied.from_user.id != message.from_user.id:
+        await message.answer(await build_public_profile(replied.from_user.id, L))
+        return
     text, kb = await build_profile_view(
         message.from_user.id, message.from_user.full_name, message.from_user.username, L
     )

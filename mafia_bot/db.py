@@ -147,10 +147,46 @@ async def _migrate_users_lang() -> None:
         await _conn.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'uz'")
 
 
+async def _migrate_cosmetics_season() -> None:
+    """7-bosqich: kosmetika (egalik va faol tanlov) va mavsum chiptasi progressi."""
+    await _conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS cosmetics_owned (
+            user_id INTEGER NOT NULL,
+            key TEXT NOT NULL,
+            expires_at INTEGER,
+            acquired_at INTEGER NOT NULL,
+            PRIMARY KEY (user_id, key)
+        );
+        -- prev_key: vaqtinchalik unvon (Hafta chempioni) tugagach qaytariladigan oldingi unvon.
+        CREATE TABLE IF NOT EXISTS cosmetics_active (
+            user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            key TEXT NOT NULL,
+            prev_key TEXT,
+            PRIMARY KEY (user_id, kind)
+        );
+        -- rewarded_*: mukofoti berilgan eng yuqori daraja (qayta berilmasligi uchun).
+        CREATE TABLE IF NOT EXISTS season_progress (
+            user_id INTEGER NOT NULL,
+            season INTEGER NOT NULL,
+            xp INTEGER NOT NULL DEFAULT 0,
+            premium INTEGER NOT NULL DEFAULT 0,
+            rewarded_free INTEGER NOT NULL DEFAULT 0,
+            rewarded_premium INTEGER NOT NULL DEFAULT 0,
+            last_xp_day TEXT,
+            reminded INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, season)
+        );
+        """
+    )
+
+
 # Tartib muhim: yangi migratsiyalar faqat ro'yxat oxiriga qo'shiladi.
 _MIGRATIONS = (
     ("2026_09_killer_shield_x10", _migrate_killer_shield_x10),
     ("2026_10_users_lang", _migrate_users_lang),
+    ("2026_10_cosmetics_season", _migrate_cosmetics_season),
 )
 
 
@@ -658,3 +694,134 @@ async def item_count(user_id: int, item_key: str) -> int:
     row = await cur.fetchone()
     await cur.close()
     return row["count"] if row else 0
+
+
+# ---------- 🎨 Kosmetika ----------
+
+
+async def grant_cosmetic(user_id: int, key: str, expires_at: int | None = None) -> bool:
+    """Kosmetikani beradi. Doimiy narsa allaqachon bo'lsa False (qayta sotib olinmaydi);
+    vaqtinchalik (expires_at) bo'lsa muddati yangilanadi."""
+    if expires_at is None:
+        cur = await _conn.execute(
+            "INSERT OR IGNORE INTO cosmetics_owned (user_id, key, expires_at, acquired_at) VALUES (?, ?, NULL, ?)",
+            (user_id, key, int(time.time())),
+        )
+        await _conn.commit()
+        return cur.rowcount > 0
+    await _conn.execute(
+        "INSERT INTO cosmetics_owned (user_id, key, expires_at, acquired_at) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id, key) DO UPDATE SET expires_at = excluded.expires_at",
+        (user_id, key, expires_at, int(time.time())),
+    )
+    await _conn.commit()
+    return True
+
+
+async def owned_cosmetics(user_id: int) -> set[str]:
+    """Muddati o'tmagan barcha kosmetika kalitlari."""
+    cur = await _conn.execute(
+        "SELECT key FROM cosmetics_owned WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)",
+        (user_id, int(time.time())),
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return {row["key"] for row in rows}
+
+
+async def set_active_cosmetic(user_id: int, kind: str, key: str | None, prev_key: str | None = None) -> None:
+    if key is None:
+        await _conn.execute("DELETE FROM cosmetics_active WHERE user_id = ? AND kind = ?", (user_id, kind))
+    else:
+        await _conn.execute(
+            "INSERT INTO cosmetics_active (user_id, kind, key, prev_key) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id, kind) DO UPDATE SET key = excluded.key, prev_key = excluded.prev_key",
+            (user_id, kind, key, prev_key),
+        )
+    await _conn.commit()
+
+
+async def active_cosmetics(user_id: int) -> dict[str, str]:
+    """Faol kosmetika {tur: kalit}. Faol narsaning muddati o'tgan bo'lsa (Hafta chempioni),
+    oldingi tanlov (prev_key) qaytariladi va bazada tiklanadi."""
+    owned = await owned_cosmetics(user_id)
+    cur = await _conn.execute("SELECT kind, key, prev_key FROM cosmetics_active WHERE user_id = ?", (user_id,))
+    rows = await cur.fetchall()
+    await cur.close()
+    active = {}
+    for row in rows:
+        if row["key"] in owned:
+            active[row["kind"]] = row["key"]
+            continue
+        restored = row["prev_key"] if row["prev_key"] in owned else None
+        await set_active_cosmetic(user_id, row["kind"], restored)
+        if restored:
+            active[row["kind"]] = restored
+    return active
+
+
+async def activate_temporary_cosmetic(user_id: int, kind: str, key: str) -> None:
+    """Vaqtinchalik narsani faollashtiradi; hozirgi tanlov prev_key sifatida saqlanadi."""
+    cur = await _conn.execute(
+        "SELECT key, prev_key FROM cosmetics_active WHERE user_id = ? AND kind = ?", (user_id, kind)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    prev = None
+    if row:
+        prev = row["prev_key"] if row["key"] == key else row["key"]
+    await set_active_cosmetic(user_id, kind, key, prev)
+
+
+# ---------- 🎟 Mavsum ----------
+
+
+async def season_progress(user_id: int, season: int) -> aiosqlite.Row | None:
+    cur = await _conn.execute(
+        "SELECT * FROM season_progress WHERE user_id = ? AND season = ?", (user_id, season)
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return row
+
+
+async def add_season_xp(user_id: int, season: int, xp: int, day: str) -> None:
+    await _conn.execute(
+        "INSERT INTO season_progress (user_id, season, xp, last_xp_day) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id, season) DO UPDATE SET xp = xp + excluded.xp, last_xp_day = excluded.last_xp_day",
+        (user_id, season, xp, day),
+    )
+    await _conn.commit()
+
+
+async def set_season_rewarded(user_id: int, season: int, free_level: int, premium_level: int) -> None:
+    await _conn.execute(
+        "UPDATE season_progress SET rewarded_free = ?, rewarded_premium = ? WHERE user_id = ? AND season = ?",
+        (free_level, premium_level, user_id, season),
+    )
+    await _conn.commit()
+
+
+async def set_season_premium(user_id: int, season: int) -> bool:
+    """Premium yo'lakni yoqadi; allaqachon premium bo'lsa False."""
+    await _conn.execute(
+        "INSERT OR IGNORE INTO season_progress (user_id, season) VALUES (?, ?)", (user_id, season)
+    )
+    cur = await _conn.execute(
+        "UPDATE season_progress SET premium = 1 WHERE user_id = ? AND season = ? AND premium = 0", (user_id, season)
+    )
+    await _conn.commit()
+    return cur.rowcount > 0
+
+
+async def season_players_to_remind(season: int) -> list[int]:
+    """Shu mavsumda qatnashgan va hali eslatma olmaganlar; eslatildi deb belgilaydi."""
+    cur = await _conn.execute(
+        "SELECT user_id FROM season_progress WHERE season = ? AND reminded = 0 AND (xp > 0 OR premium = 1)",
+        (season,),
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    await _conn.execute("UPDATE season_progress SET reminded = 1 WHERE season = ?", (season,))
+    await _conn.commit()
+    return [row["user_id"] for row in rows]

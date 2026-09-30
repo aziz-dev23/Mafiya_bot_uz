@@ -136,6 +136,7 @@ HELP_TEXT = (
     "/dokon — buyumlar do'koni (Himoya, Soxta hujjat, Ovozdan himoya, Miltiq, Sehrli oyna)\n"
     "/sumka — buyumlaringiz, o'yin oldidan yoqish/o'chirish\n"
     "/buyumlar — barcha buyumlar nima qilishi\n"
+    "/mavsum — mavsum chiptasi: daraja, XP va mukofotlar\n"
     "/send — boshqa foydalanuvchiga Dollar yuborish\n"
     "/sendgem — boshqa foydalanuvchiga Olmos yuborish\n"
     "/geroy — Geroyni sotib olish / darajasini oshirish\n"
@@ -856,6 +857,7 @@ BOT_COMMANDS = {
     "dokon": "Buyumlar do'koni (Himoya, Miltiq va h.k.)",
     "sumka": "Mening buyumlarim (yoqish/o'chirish)",
     "buyumlar": "Barcha buyumlar tavsifi",
+    "mavsum": "Mavsum chiptasi: daraja va mukofotlar",
     "send": "Boshqa foydalanuvchiga Dollar yuborish",
     "sendgem": "Boshqa foydalanuvchiga Olmos yuborish",
     "profile": "Profilingiz (balans, statistika)",
@@ -976,3 +978,106 @@ HERO_CARD = (
     "<b>Qanday ishlatiladi:</b> tunda shaxsiy chatga \"🦸 Geroy zarbasi\" tugmalari keladi, o'yinda 1 marta.\n"
     "<b>Sarflanadimi:</b> yo'q, umrbod qoladi (/geroy)."
 )
+
+# ---------- 7-bosqich: 🎨 Kosmetika ----------
+# Unvon matni (emojisiz qismi) 16 belgidan oshmasin.
+COSMETIC_NAMES = {
+    "night_guard": "🌙 Tun qo'riqchisi",
+    "orator": "🗣 Notiq",
+    "old_fox": "🎩 Qari tulki",
+    "owl": "🦉 Boyo'g'li",
+    "cold_blooded": "🧊 Sovuqqon",
+    "trickster": "🃏 Hiylakor",
+    "eagle_eye": "🦅 Burgut ko'z",
+    "shadow": "🌑 Soya",
+    "legendary": "🐉 Afsonaviy",
+    "newcomer": "🌱 Yangi o'yinchi",
+    "weekly_champion": "🏆 Hafta chempioni",
+    "rose": "🌹 Atirgul",
+    "curtain": "🎬 Parda",
+    "ghost": "👻 Arvoh",
+    "lightning": "⚡ Chaqmoq",
+    "stars_frame": "✨ Yulduzli ramka",
+    "ice_frame": "❄️ Muzli ramka",
+    "fire_frame": "🔥 Olovli ramka",
+    "s1_title": "🍂 Kuz afsonasi",
+    "s1_death": "🍂 Kuzgi xazon",
+    "s1_frame": "🍂 Kuzgi ramka",
+}
+# O'lim uslublari: kim o'ldirgani va qanday o'lgani aytilmaydi. Rol qismi (DEATH_STYLE_ROLE)
+# guruhda rol e'loni yoqilgan bo'lsa qo'shiladi.
+DEATH_STYLES = {
+    "rose": "🌹 {name} atirgullar orasida mangu uyquga ketdi.",
+    "curtain": "🎬 Parda yopildi: {name} sahnani tark etdi.",
+    "ghost": "👻 {name} arvohga aylandi, endi shaharni soyadan kuzatadi.",
+    "lightning": "⚡ Bir zumda! {name} halok bo'ldi.",
+    "s1_death": "🍂 {name} kuzgi xazon bilan birga to'kildi.",
+}
+DEATH_STYLE_ROLE = " U {role} edi."
+FRAME_LINES = {
+    "stars_frame": "✨━━━━━━━━━━━━✨",
+    "ice_frame": "❄️━━━━━━━━━━━━❄️",
+    "fire_frame": "🔥━━━━━━━━━━━━🔥",
+    "s1_frame": "🍂━━━━━━━━━━━━🍂",
+}
+COSMETIC_KIND_NAMES = {"title": "🏷 Unvonlar", "death": "💀 O'lim uslublari", "frame": "🖼 Profil ramkalari"}
+COSMETICS_BUTTON = "🎨 Kosmetika"
+COSMETICS_STORE_TITLE = (
+    "🎨 <b>KOSMETIKA</b>\n"
+    "Doimiy bezaklar — o'yinga ta'sir qilmaydi. Har turdan bittasi faol bo'ladi, /sumka da almashtiriladi."
+)
+COSMETIC_PRICE_LINE = "{name} — {price}"
+COSMETIC_OWNED_LINE = "✅ {name}"
+COSMETIC_DEATH_PREVIEW = "<i>{preview}</i>"
+COSMETIC_BOUGHT = "✅ «{name}» sotib olindi va faollashtirildi. Almashtirish: /sumka → 🎨 Kosmetika."
+COSMETIC_ALREADY_OWNED = "Bu sizda allaqachon bor."
+COSMETIC_NOT_FOR_SALE = "Bu narsa do'konda sotilmaydi."
+COSMETICS_MY_TITLE = "🎨 <b>MENING KOSMETIKAM</b>\nFaol narsani tanlash uchun bosing."
+COSMETICS_MY_EMPTY = "🎨 Sizda hali kosmetika yo'q. /dokon → 🎨 Kosmetika."
+COSMETIC_TAKE_OFF = "❌ {kind}: yechish"
+COSMETIC_ACTIVATED = "✅ Faollashtirildi"
+COSMETIC_REMOVED = "Yechildi"
+COSMETIC_PREVIEW_NAME = "Ism"
+PUBLIC_PROFILE = (
+    "👤 <b>{name}</b>\n"
+    "🎮 O'yinlar: {games} | 🏆 G'alabalar: {wins}\n"
+    "🏅 Umumiy reytingdagi o'rni: {place}"
+)
+PUBLIC_PROFILE_NO_RANK = "—"
+PUBLIC_PROFILE_UNKNOWN = "Bu foydalanuvchi hali botda o'ynamagan."
+VOTE_RESULT_HEADER = "⚖️ Shahar ovoz berdi:"
+WEEKLY_CHAMPION_NOTICE = (
+    "🏆 Siz o'tgan haftaning chempionisiz! «🏆 Hafta chempioni» unvoni bir hafta davomida ismingiz oldida turadi."
+)
+
+# ---------- 7-bosqich: 🎟 Mavsum chiptasi ----------
+SEASON_NAMES = {1: "🍂 Kuz"}
+SEASON_DEFAULT_NAME = "{n}-mavsum"
+SEASON_NOT_STARTED = "🎟 1-mavsum ({name}) {date} kuni boshlanadi."
+SEASON_TEXT = (
+    "🎟 <b>{name}</b> — {n}-mavsum\n"
+    "Tugashiga {days} kun qoldi.\n\n"
+    "⭐ Daraja: <b>{level}</b>/{max_level} · XP: {xp}\n"
+    "{next_line}\n\n"
+    "🆓 <b>Bepul yo'lak</b> — keyingi mukofot: {next_free}\n"
+    "💎 <b>Premium yo'lak</b> {premium_state} — keyingi mukofot: {next_premium}\n\n"
+    "XP: g'alaba {xp_win}, mag'lubiyat {xp_lose}, kunning birinchi o'yini +{xp_bonus} "
+    "(kamida {min_players} kishilik o'yinlarda)."
+)
+SEASON_NEXT_LEVEL = "Keyingi darajagacha: {xp} XP"
+SEASON_MAX_REACHED = "🏁 Maksimal darajaga yetdingiz!"
+SEASON_PREMIUM_ON = "✅"
+SEASON_PREMIUM_OFF = "🔒"
+SEASON_NO_MORE_REWARDS = "—"
+SEASON_REWARD_AT = "{level}-daraja: {rewards}"
+SEASON_PREMIUM_BUTTON = "💎 Premium yo'lak — {price}💎"
+SEASON_PREMIUM_BOUGHT = "✅ Premium yo'lak ochildi! Yetgan darajalaringiz mukofoti ham berildi."
+SEASON_ALREADY_PREMIUM = "Sizda bu mavsum premium yo'lagi allaqachon bor."
+SEASON_NOT_ACTIVE = "Hozir faol mavsum yo'q."
+SEASON_REMINDER = "⏳ {name} mavsumi tugashiga {days} kun qoldi! Darajangiz: {level}. /mavsum"
+SEASON_XP_LINE = "🎟 +{xp} XP · {level}-daraja"
+SEASON_REWARDS_GOT = "🎁 Mavsum mukofotlari: {rewards}"
+REWARD_DOLLAR = "{amount}💵"
+REWARD_COIN = "{amount}🪙"
+REWARD_DIAMOND = "{amount}💎"
+REWARD_ITEM = "{count} ta {emoji} {name}"

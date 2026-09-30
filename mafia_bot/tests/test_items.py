@@ -72,7 +72,7 @@ class InventoryViewTest(unittest.TestCase):
         text, kb = items.build_inventory_text_and_keyboard(rows)
         self.assertIn(texts.INVENTORY_RIFLE_LINE.format(count=2), text)
         data = [b.callback_data for row in kb.inline_keyboard for b in row]
-        self.assertEqual(data, ["toggleitem:shield"])
+        self.assertEqual(data, ["toggleitem:shield", "cosm:mine"])
         self.assertTrue(kb.inline_keyboard[0][0].text.startswith("❌"))
 
     def test_cards_render_in_all_languages(self):
@@ -86,7 +86,9 @@ class InventoryViewTest(unittest.TestCase):
 
     def test_store_has_info_buttons(self):
         kb = items.build_store_keyboard()
-        self.assertEqual([row[1].callback_data for row in kb.inline_keyboard], [f"iteminfo:{k}" for k in ITEMS])
+        rows = kb.inline_keyboard
+        self.assertEqual([row[1].callback_data for row in rows[:-1]], [f"iteminfo:{k}" for k in ITEMS])
+        self.assertEqual(rows[-1][0].callback_data, "cosm:store")
 
 
 class RoleMessageTest(unittest.TestCase):

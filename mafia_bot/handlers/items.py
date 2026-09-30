@@ -39,6 +39,7 @@ def build_store_keyboard(L=texts) -> InlineKeyboardMarkup:
         ]
         for key in ITEMS
     ]
+    rows.append([InlineKeyboardButton(text=L.COSMETICS_BUTTON, callback_data="cosm:store")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -152,8 +153,9 @@ async def on_buy_item_qty(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
 
 
 def build_inventory_text_and_keyboard(rows, L=texts) -> tuple[str, InlineKeyboardMarkup]:
+    cosmetics_row = [InlineKeyboardButton(text=L.COSMETICS_BUTTON, callback_data="cosm:mine")]
     if not rows:
-        return L.INVENTORY_EMPTY, InlineKeyboardMarkup(inline_keyboard=[])
+        return L.INVENTORY_EMPTY, InlineKeyboardMarkup(inline_keyboard=[cosmetics_row])
 
     lines = [L.INVENTORY_TITLE, ""]
     buttons = []
@@ -171,6 +173,7 @@ def build_inventory_text_and_keyboard(rows, L=texts) -> tuple[str, InlineKeyboar
         buttons.append(
             [InlineKeyboardButton(text=f"{state} {item['emoji']} {L.ITEM_NAMES[key]}", callback_data=f"toggleitem:{key}")]
         )
+    buttons.append(cosmetics_row)
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

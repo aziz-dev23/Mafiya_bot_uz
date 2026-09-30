@@ -9,6 +9,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+import cosmetics
 import db
 from config import AFK_LIMIT, ANNOUNCE_BATCH_DELAY, LAST_WORD_MAX_LENGTH, REMINDER_BEFORE_END
 from economy import (
@@ -41,7 +42,6 @@ from utils import (
     build_target_keyboard,
     build_vote_keyboard,
     esc,
-    hero_badge,
     mention,
     split_text,
 )
@@ -224,8 +224,23 @@ async def _report(bot: Bot, game: Game, line: str) -> None:
         await _send_group(bot, game, line)
 
 
+def _titled(game: Game, player: Player) -> str:
+    """Guruh xabaridagi ism: faol unvon + havola."""
+    return cosmetics.display_name(mention(player), gt(game), player.title_key)
+
+
+def _styled_death(game: Game, player: Player) -> str | None:
+    """Egasining 🎨 o'lim uslubi bo'yicha matn (uslub bo'lmasa None)."""
+    G = gt(game)
+    role = G.ROLE_NAMES[player.role] if game.settings.reveal_roles else None
+    return cosmetics.death_line(player.death_key, _titled(game, player), role, G)
+
+
 def _death_line(game: Game, prefix: str, player: Player) -> str:
-    return gt(game).DEATH_LINE.format(prefix=prefix, name=mention(player), role=role_reveal(game, player))
+    styled = _styled_death(game, player)
+    if styled:
+        return styled
+    return gt(game).DEATH_LINE.format(prefix=prefix, name=_titled(game, player), role=role_reveal(game, player))
 
 
 # ---------- O'lim va g'alaba ----------
@@ -1100,10 +1115,14 @@ async def _day_phase_result(bot: Bot, game: Game) -> None:
                 for voter_id, target_id in game.day_votes.items():
                     if target_id == eliminated.user_id:
                         add_mvp(game, voter_id, MVP_VOTED_OUT_MAFIA)
-            await bot.send_message(
-                game.chat_id,
-                gt(game).ELIMINATED.format(name=mention(eliminated), role=role_reveal(game, eliminated)),
-            )
+            styled = _styled_death(game, eliminated)
+            if styled:
+                announcement = f"{gt(game).VOTE_RESULT_HEADER}\n{styled}"
+            else:
+                announcement = gt(game).ELIMINATED.format(
+                    name=_titled(game, eliminated), role=role_reveal(game, eliminated)
+                )
+            await bot.send_message(game.chat_id, announcement)
             await _kill_player(bot, game, eliminated)
 
             if eliminated.role == Role.SORCERER:
@@ -1138,7 +1157,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     lines.append(G.WINNERS_HEADER)
     for p in winners:
         status = "" if p.alive else G.DEAD_MARK
-        lines.append(f"{idx}. {esc(p.full_name)}{hero_badge(p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
+        lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
         idx += 1
 
     if losers:
@@ -1146,7 +1165,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
         lines.append(G.OTHERS_HEADER)
         for p in losers:
             status = "" if p.alive else G.DEAD_MARK
-            lines.append(f"{idx}. {esc(p.full_name)}{hero_badge(p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
+            lines.append(f"{idx}. {cosmetics.display_name(esc(p.full_name), G, p.title_key, p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0

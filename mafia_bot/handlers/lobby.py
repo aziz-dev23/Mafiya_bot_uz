@@ -6,17 +6,18 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, User
 
+import cosmetics
 import db
 import texts
 from config import BRAND_NAME, LOBBY_EDIT_INTERVAL, NEWBIE_GAMES
-from economy import ITEM_MAX_USES_PER_GAME, ITEMS, MAFIA_TEAM_ROLES
+from economy import DEATH_STYLE, ITEM_MAX_USES_PER_GAME, ITEMS, MAFIA_TEAM_ROLES, TITLE
 from game.engine import rifle_available, run_game
 from game.manager import manager
 from game.models import Game, GameState, Player, Role
 from game.roles import assign_roles
 from game.settings import load_settings
 from i18n import get_texts, user_lang
-from utils import esc, hero_badge, mention
+from utils import esc, mention
 
 router = Router(name="lobby")
 
@@ -26,7 +27,10 @@ def _gl(game: Game):
 
 
 def build_lobby_text(game: Game) -> str:
-    names = ", ".join(mention(p) + hero_badge(p.hero_badge) for p in game.players.values()) or "—"
+    L = _gl(game)
+    names = ", ".join(
+        cosmetics.display_name(mention(p), L, p.title_key, p.hero_badge) for p in game.players.values()
+    ) or "—"
     return _gl(game).LOBBY_TEXT.format(
         brand=esc(BRAND_NAME), names=names, count=len(game.players), min_players=game.settings.min_players
     )
@@ -109,9 +113,11 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
 
     await db.ensure_user(user.id, user.full_name, user.username)
 
+    active = await cosmetics.active(user.id)
     game.players[user.id] = Player(
         user_id=user.id, full_name=user.full_name, username=user.username, lang=lang,
         hero_badge=await db.get_hero_level(user.id),
+        title_key=active.get(TITLE), death_key=active.get(DEATH_STYLE),
     )
     manager.register_player(game, user.id)
     return True

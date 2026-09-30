@@ -5,6 +5,7 @@ import time
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
+import cosmetics
 import db
 from economy import WEEKLY_REWARD_DIAMONDS
 from i18n import texts_for_user
@@ -30,6 +31,15 @@ async def pay_last_week(bot: Bot) -> bool:
             await bot.send_message(
                 user_id, L.WEEKLY_REWARD_MESSAGE.format(place=place, points=row["total"], diamonds=diamonds)
             )
+        except (TelegramForbiddenError, TelegramBadRequest):
+            pass
+    if awards:
+        # /top7 1-o'rin egasiga bir haftalik "🏆 Hafta chempioni" unvoni.
+        champion_id = awards[0][0]
+        await cosmetics.grant_weekly_champion(champion_id)
+        try:
+            L = await texts_for_user(champion_id)
+            await bot.send_message(champion_id, L.WEEKLY_CHAMPION_NOTICE)
         except (TelegramForbiddenError, TelegramBadRequest):
             pass
     logger.info("Haftalik mukofot berildi (hafta boshi %s): %s", last_week, awards)

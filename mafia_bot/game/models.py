@@ -54,6 +54,9 @@ class Player:
     rifle_used: bool = False
     # Geroy belgisi (🦸N) uchun darajasi — o'yinda Geroy o'chirilgan bo'lsa ham ko'rinadi.
     hero_badge: int = 0
+    # Faol kosmetika (ro'yxatga qo'shilganda yuklanadi): unvon va o'lim uslubi.
+    title_key: str | None = None
+    death_key: str | None = None
     hero_level: int = 0
     # O'yin boshidagi rol (statistika uchun; Bo'ri/Serjant keyin rolini o'zgartirishi mumkin).
     initial_role: Role | None = None
