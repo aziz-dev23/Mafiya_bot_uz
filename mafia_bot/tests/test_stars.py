@@ -17,7 +17,9 @@ class PackagesTest(unittest.TestCase):
 
     def test_base_price_and_discounts(self):
         self.assertEqual(dict(STARS_PACKAGES)[1], STARS_PER_DIAMOND)
-        # Chegirmalar so'mdagi paketlar bilan bir xil (u yerda ham 30💎 ning 1 donasi 50💎 nikidan arzon).
+        per_diamond = [s / d for d, s in STARS_PACKAGES]
+        self.assertEqual(per_diamond, sorted(per_diamond, reverse=True))  # katta paket arzonroq
+        # Chegirmalar so'mdagi paketlar bilan bir xil.
         som = dict(DIAMOND_PACKAGES)
         for diamonds, price in STARS_PACKAGES:
             self.assertAlmostEqual(price, som[diamonds] / 990 * STARS_PER_DIAMOND, delta=0.5)
@@ -170,6 +172,12 @@ class TermsTest(unittest.TestCase):
     def test_required_texts(self):
         self.assertIn("/paysupport", texts.SHOP_FOOTER)
         self.assertLessEqual(len(texts.TERMS_TEXT), 4096)
+
+
+class CardPackagesTest(unittest.TestCase):
+    def test_bigger_package_never_more_expensive_per_diamond(self):
+        per_diamond = [price / d for d, price in DIAMOND_PACKAGES]
+        self.assertEqual(per_diamond, sorted(per_diamond, reverse=True))
 
 
 if __name__ == "__main__":
