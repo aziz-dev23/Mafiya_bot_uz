@@ -12,6 +12,11 @@ def esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def hero_badge(level: int) -> str:
+    """Geroy darajasi belgisi (🦸N) — faqat bezak, kuch qo'shmaydi."""
+    return get_texts(None).HERO_BADGE.format(level=level) if level > 0 else ""
+
+
 def mention(player) -> str:
     return f'<a href="tg://user?id={player.user_id}">{esc(player.full_name)}</a>'
 
@@ -36,7 +41,9 @@ def build_target_keyboard(game: Game, exclude_ids: set[int], prefix: str) -> Inl
 def build_mafia_kill_keyboard(game: Game, mafia_user_id: int, exclude_ids: set[int]) -> InlineKeyboardMarkup:
     kb = build_target_keyboard(game, exclude_ids, "m_kill")
     mafia = game.players.get(mafia_user_id)
-    if mafia and mafia.items.get("rifle", 0) > 0:
+    from game.engine import rifle_available
+
+    if mafia and rifle_available(game, mafia):
         L = get_texts(mafia.lang)
         label = L.RIFLE_ON if mafia_user_id in game.mafia_rifle_users else L.RIFLE_OFF
         kb.inline_keyboard.append([InlineKeyboardButton(text=label, callback_data="m_rifle_toggle")])

@@ -121,7 +121,7 @@ MODULE_FAST = {
     ("game.settings", "DAY_DISCUSSION_PER_PLAYER"): 0,
     ("game.settings", "VOTE_PER_PLAYER"): 0,
 }
-SETTINGS_FAST = {"night": 0.05, "dawn": 0.01, "discussion": 0, "vote": 0.05, "confirm": 0.03}
+SETTINGS_FAST = {"night": 0.05, "discussion": 0, "vote": 0.05, "confirm": 0.03}
 
 
 class SimulationTest(unittest.IsolatedAsyncioTestCase):
@@ -157,7 +157,7 @@ class SimulationTest(unittest.IsolatedAsyncioTestCase):
             patch.object(engine, "lock_chat", AsyncMock()),
             patch.object(engine, "unlock_chat", AsyncMock()),
             patch.multiple("db", consume_item=AsyncMock(return_value=True), add_balance=AsyncMock(),
-                           add_item=AsyncMock(), record_game_result=AsyncMock(), add_points=AsyncMock(),
+                           add_item=AsyncMock(), item_count=AsyncMock(return_value=0), record_game_result=AsyncMock(), add_points=AsyncMock(),
                            record_role_result=AsyncMock()),
         ]
         for p in patches:

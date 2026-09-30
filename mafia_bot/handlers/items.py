@@ -1,11 +1,19 @@
-from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import db
 import texts
-from economy import CURRENCY_COLUMN, CURRENCY_EMOJI, ITEMS
+from economy import (
+    CURRENCY_COLUMN,
+    CURRENCY_EMOJI,
+    HERO_BUY_PRICE_DIAMONDS,
+    HERO_BYPASS_LEVEL,
+    HERO_LEVEL_UP_PRICE_DIAMONDS,
+    ITEMS,
+)
+from utils import split_text
 
 router = Router(name="items")
 
@@ -26,11 +34,41 @@ def build_store_keyboard(L=texts) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 text=f"{ITEMS[key]['emoji']} {L.ITEM_NAMES[key]} — {_price(key)}", callback_data=f"buyitem:{key}"
-            )
+            ),
+            InlineKeyboardButton(text=L.ITEM_INFO_BUTTON, callback_data=f"iteminfo:{key}"),
         ]
         for key in ITEMS
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def item_card(key: str, L=texts) -> str:
+    """Buyum kartasi: nima qiladi, kimga foydali, qanday ishlatiladi, sarflanadimi."""
+    info = L.ITEM_INFO[key]
+    return L.ITEM_CARD.format(emoji=ITEMS[key]["emoji"], name=L.ITEM_NAMES[key], price=_price(key), **info)
+
+
+def hero_card(L=texts) -> str:
+    return L.HERO_CARD.format(
+        price=HERO_BUY_PRICE_DIAMONDS, level_price=HERO_LEVEL_UP_PRICE_DIAMONDS, bypass=HERO_BYPASS_LEVEL
+    )
+
+
+@router.message(Command("buyumlar", "itemsinfo"))
+async def cmd_items_info(message: Message, L=texts) -> None:
+    cards = [L.ITEMS_LIST_HEADER, *(item_card(key, L) for key in ITEMS), hero_card(L)]
+    for part in split_text("\n\n".join(cards)):
+        await message.answer(part)
+
+
+@router.callback_query(F.data.startswith("iteminfo:"))
+async def on_item_info(callback: CallbackQuery, UL=texts) -> None:
+    key = callback.data.split(":", 1)[1]
+    if key not in ITEMS:
+        await callback.answer(UL.ITEM_NOT_FOUND, show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.answer(item_card(key, UL))
 
 
 def build_quantity_keyboard(key: str, L=texts) -> InlineKeyboardMarkup:
@@ -78,7 +116,7 @@ async def on_buy_item_back(callback: CallbackQuery, UL=texts) -> None:
 
 
 @router.callback_query(F.data.startswith("buyitem_qty:"))
-async def on_buy_item_qty(callback: CallbackQuery, UL=texts) -> None:
+async def on_buy_item_qty(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     parts = callback.data.split(":")
     item = ITEMS.get(parts[1]) if len(parts) == 3 else None
     # Faqat tugmalardagi miqdorlar qabul qilinadi — soxta (manfiy) miqdor yuborib bo'lmaydi.
@@ -103,6 +141,14 @@ async def on_buy_item_qty(callback: CallbackQuery, UL=texts) -> None:
         )
     except TelegramBadRequest:
         pass
+    # Xariddan keyin shaxsiy chatga buyum kartasi.
+    try:
+        await bot.send_message(
+            callback.from_user.id,
+            UL.ITEM_BOUGHT_CARD.format(qty=qty, emoji=item["emoji"], name=name) + "\n\n" + item_card(key, UL),
+        )
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass
 
 
 def build_inventory_text_and_keyboard(rows, L=texts) -> tuple[str, InlineKeyboardMarkup]:
@@ -116,15 +162,14 @@ def build_inventory_text_and_keyboard(rows, L=texts) -> tuple[str, InlineKeyboar
         item = ITEMS.get(key)
         if not item:
             continue
+        if key == "rifle":
+            # Miltiq yoqish-o'chirishga bog'liq emas — faqat soni va izoh.
+            lines.append(L.INVENTORY_RIFLE_LINE.format(count=row["count"]))
+            continue
         state = L.ITEM_STATE_ON if row["enabled"] else L.ITEM_STATE_OFF
         lines.append(L.INVENTORY_LINE.format(emoji=item["emoji"], name=L.ITEM_NAMES[key], count=row["count"], state=state))
-        action = L.ITEM_TURN_OFF if row["enabled"] else L.ITEM_TURN_ON
         buttons.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{item['emoji']} {L.ITEM_NAMES[key]}: {action}", callback_data=f"toggleitem:{key}"
-                )
-            ]
+            [InlineKeyboardButton(text=f"{state} {item['emoji']} {L.ITEM_NAMES[key]}", callback_data=f"toggleitem:{key}")]
         )
     return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -142,7 +187,7 @@ async def on_toggle_item(callback: CallbackQuery, UL=texts) -> None:
     key = callback.data.split(":", 1)[1]
     rows = await db.get_inventory(callback.from_user.id)
     row = next((r for r in rows if r["item_key"] == key), None)
-    if not row:
+    if not row or key == "rifle":
         await callback.answer(UL.ITEM_NOT_OWNED, show_alert=True)
         return
 

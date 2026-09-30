@@ -3,10 +3,20 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery, Message
 
-import db
 import texts
-from economy import HERO_ELIGIBLE_ROLES, ITEMS, MVP_DETECTIVE_FOUND_MAFIA, POISONER_MAX_USES, add_mvp
-from game.engine import announce, doctor_forbidden_ids, gt, log, maybe_end_night, team_of, update_mafia_status
+from economy import MVP_DETECTIVE_FOUND_MAFIA, POISONER_MAX_USES, add_mvp
+from game.engine import (
+    announce,
+    doctor_forbidden_ids,
+    gt,
+    hero_can_shoot,
+    log,
+    maybe_end_night,
+    rifle_available,
+    team_of,
+    update_mafia_status,
+    use_item,
+)
 from game.manager import manager
 from game.models import MAFIA_KILL_ROLES, MAFIA_TEAM_ROLES, Game, GameState, Player, Role
 from i18n import get_texts
@@ -42,12 +52,6 @@ async def _edit(callback: CallbackQuery, text: str, **kwargs) -> None:
         await callback.message.edit_text(text, **kwargs)
     except TelegramBadRequest:
         pass
-
-
-def _log_item(game: Game, owner: Player, key: str) -> None:
-    item = ITEMS[key]
-    G = gt(game)
-    log(game, G.H_ITEM.format(emoji=item["emoji"], owner=esc(owner.full_name), item=G.ITEM_NAMES[key]))
 
 
 def _acted(game: Game, player: Player) -> bool:
@@ -98,7 +102,7 @@ async def on_rifle_toggle(callback: CallbackQuery, UL=texts) -> None:
     if not actor:
         return
     game, mafia = actor
-    if mafia.items.get("rifle", 0) <= 0:
+    if not rifle_available(game, mafia):
         await callback.answer(UL.NOT_FOR_YOU, show_alert=True)
         return
 
@@ -150,13 +154,11 @@ async def on_detective_check(callback: CallbackQuery, bot: Bot, UL=texts) -> Non
         return
 
     game.detective_target = target.user_id
-    faked = False
-    if target.items.get("fake_doc", 0) > 0 and await db.consume_item(target.user_id, "fake_doc"):
-        target.items["fake_doc"] -= 1
-        faked = True
-        _log_item(game, target, "fake_doc")
-    if target.user_id == game.advokat_target:
-        faked = True
+    # Tartib: Advokat himoyasi → 📁 Soxta hujjat. Soxta hujjat faqat egasi Mafiya jamoasida bo'lsa
+    # va Advokat himoya qilmagan bo'lsa sarflanadi (aks holda natija baribir "mafiya emas").
+    faked = target.user_id == game.advokat_target
+    if not faked and target.role in MAFIA_TEAM_ROLES:
+        faked = await use_item(bot, game, target, "fake_doc")
 
     is_mafia = target.role in MAFIA_TEAM_ROLES and not faked
     if is_mafia:
@@ -237,12 +239,8 @@ async def on_poisoner_dose(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
 
     game.poison_uses += 1
     log(game, gt(game).H_POISON.format(actor=esc(poisoner.full_name), target=esc(target.full_name)))
-    if target.items.get("poison_shield", 0) > 0 and await db.consume_item(target.user_id, "poison_shield"):
-        target.items["poison_shield"] -= 1
-        _log_item(game, target, "poison_shield")
-        # Kezuvchi natijani bilmaydi — himoya sezilmasdan sarflanadi, dori ta'sirsiz qoladi.
-    else:
-        game.pending_poison[target.user_id] = game.day_number + 1
+    # 💊 Doridan himoya zahar ta'sir qiladigan kechada tekshiriladi (engine.resolve_night).
+    game.pending_poison[target.user_id] = game.day_number + 1
 
     await callback.answer(UL.YOU_POISONED_ALERT.format(name=target.full_name))
     await _edit(callback, UL.YOU_POISONED.format(name=esc(target.full_name)))
@@ -458,23 +456,20 @@ async def on_guess(callback: CallbackQuery, UL=texts) -> None:
 @router.callback_query(F.data.startswith("hero_shot:"))
 async def on_hero_shot(callback: CallbackQuery, UL=texts) -> None:
     game = manager.get_game_by_player(callback.from_user.id)
-    if not game or game.state != GameState.DAWN:
-        await callback.answer(UL.NOT_DAWN, show_alert=True)
+    if not game or game.state != GameState.NIGHT:
+        await callback.answer(UL.NOT_NIGHT, show_alert=True)
         return
 
     shooter = game.players.get(callback.from_user.id)
-    if not shooter or not shooter.alive or shooter.hero_level <= 0 or shooter.role not in HERO_ELIGIBLE_ROLES:
-        await callback.answer(UL.NOT_FOR_YOU, show_alert=True)
-        return
-    if shooter.user_id in game.hero_shot_used:
-        await callback.answer(UL.HERO_SHOT_ALREADY_USED, show_alert=True)
+    if not shooter or shooter.user_id in game.hero_shots or not hero_can_shoot(game, shooter):
+        await callback.answer(UL.HERO_SHOT_ALREADY_USED if shooter and shooter.user_id in game.hero_shot_used
+                              else UL.NOT_FOR_YOU, show_alert=True)
         return
     target = await _target(callback, game, UL)
-    if not target:
+    if not target or target.user_id == shooter.user_id:
         return
 
-    game.dawn_shots[shooter.user_id] = target.user_id
-    game.dawn_acted.add(shooter.user_id)
+    game.hero_shots[shooter.user_id] = target.user_id
     await callback.answer(UL.HERO_CHOSEN_ALERT.format(name=target.full_name))
     await _edit(callback, UL.HERO_CHOSEN.format(name=esc(target.full_name)))
 

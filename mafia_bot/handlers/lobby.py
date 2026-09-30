@@ -9,14 +9,14 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import db
 import texts
 from config import BRAND_NAME, LOBBY_EDIT_INTERVAL, NEWBIE_GAMES
-from economy import ITEM_MAX_USES_PER_GAME, MAFIA_TEAM_ROLES
-from game.engine import run_game
+from economy import ITEM_MAX_USES_PER_GAME, ITEMS, MAFIA_TEAM_ROLES
+from game.engine import rifle_available, run_game
 from game.manager import manager
 from game.models import Game, GameState, Player, Role
 from game.roles import assign_roles
 from game.settings import load_settings
 from i18n import get_texts, user_lang
-from utils import esc, mention
+from utils import esc, hero_badge, mention
 
 router = Router(name="lobby")
 
@@ -26,7 +26,7 @@ def _gl(game: Game):
 
 
 def build_lobby_text(game: Game) -> str:
-    names = ", ".join(mention(p) for p in game.players.values()) or "—"
+    names = ", ".join(mention(p) + hero_badge(p.hero_badge) for p in game.players.values()) or "—"
     return _gl(game).LOBBY_TEXT.format(
         brand=esc(BRAND_NAME), names=names, count=len(game.players), min_players=game.settings.min_players
     )
@@ -73,7 +73,21 @@ def build_role_message(player: Player, game: Game) -> str:
     if player.games_played < NEWBIE_GAMES:
         lines.append("")
         lines.append(L.NEWBIE_TIPS)
+    if game.settings.items_active:
+        lines.append("")
+        lines.append(_items_block(player, game, L))
     return "\n".join(lines)
+
+
+def _items_block(player: Player, game: Game, L) -> str:
+    """Rol xabari oxiridagi "shu o'yinda yoqilgan buyumlaringiz" ro'yxati."""
+    lines = [L.ROLE_ITEMS_HEADER]
+    for key, count in player.items.items():
+        if count > 0 and key in ITEMS:
+            lines.append(L.ROLE_ITEMS_LINE.format(emoji=ITEMS[key]["emoji"], name=L.ITEM_NAMES[key]))
+    if rifle_available(game, player):
+        lines.append(L.ROLE_ITEMS_RIFLE.format(count=player.rifle_count))
+    return "\n".join(lines) if len(lines) > 1 else L.ROLE_ITEMS_NONE
 
 
 async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
@@ -95,7 +109,10 @@ async def try_register_player(bot: Bot, game: Game, user: User) -> bool:
 
     await db.ensure_user(user.id, user.full_name, user.username)
 
-    game.players[user.id] = Player(user_id=user.id, full_name=user.full_name, username=user.username, lang=lang)
+    game.players[user.id] = Player(
+        user_id=user.id, full_name=user.full_name, username=user.username, lang=lang,
+        hero_badge=await db.get_hero_level(user.id),
+    )
     manager.register_player(game, user.id)
     return True
 
@@ -328,7 +345,10 @@ async def _start_game(bot: Bot, game: Game) -> None:
         # Guruh sozlamasida buyumlar yoki Geroy o'chirilgan bo'lsa, ular bu o'yinda ishlamaydi.
         if game.settings.items_active:
             enabled = await db.get_enabled_items(player.user_id)
+            # 🔫 Miltiq yoqish-o'chirishga bog'liq emas — alohida hisoblanadi (tunda qo'lda ishlatiladi).
+            enabled.pop("rifle", None)
             player.items = {key: min(count, ITEM_MAX_USES_PER_GAME) for key, count in enabled.items()}
+            player.rifle_count = await db.item_count(player.user_id, "rifle")
         if game.settings.hero_active:
             player.hero_level = await db.get_hero_level(player.user_id)
         row = await db.get_user(player.user_id)
@@ -346,6 +366,11 @@ async def _start_game(bot: Bot, game: Game) -> None:
         pass
 
     await _unpin_lobby(bot, game)
+    if not game.settings.items_active:
+        try:
+            await bot.send_message(game.chat_id, _gl(game).NO_ITEMS_NOTICE)
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
     group_url = await _group_url(bot, game.chat_id)
 
     async def _send_role(player: Player) -> None:

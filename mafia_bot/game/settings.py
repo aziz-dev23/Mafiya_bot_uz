@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass, field, fields
 import db
 from config import (
     CONFIRM_VOTE_DURATION,
-    DAWN_DURATION,
     DAY_DISCUSSION_DURATION,
     DAY_DISCUSSION_MAX,
     DAY_DISCUSSION_PER_PLAYER,
@@ -39,7 +38,6 @@ MANDATORY_ROLES = (Role.DON, Role.MAFIA, Role.DETECTIVE)
 # /sozlamalar dagi vaqtlar: (maydon, qadam, minimum, maksimum).
 TIME_LIMITS = {
     "night": (5, 15, 300),
-    "dawn": (5, 10, 120),
     "discussion": (10, 10, 300),
     "vote": (5, 10, 300),
     "confirm": (5, 10, 120),
@@ -51,7 +49,6 @@ PLAYERS_MAX_BOUND = 40
 @dataclass
 class GroupSettings:
     night: int = NIGHT_DURATION
-    dawn: int = DAWN_DURATION
     discussion: int = DAY_DISCUSSION_DURATION
     vote: int = VOTE_DURATION
     confirm: int = CONFIRM_VOTE_DURATION
@@ -87,7 +84,6 @@ class GroupSettings:
     def seconds(self, name: str) -> float:
         base = {
             "night": self.night,
-            "dawn": self.dawn,
             "confirm": self.confirm,
             "revenge": REVENGE_DURATION,
             "judge": JUDGE_DURATION,

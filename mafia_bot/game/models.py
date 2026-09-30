@@ -33,7 +33,6 @@ MAFIA_KILL_ROLES = (Role.MAFIA, Role.DON)
 class GameState(str, Enum):
     LOBBY = "lobby"
     NIGHT = "night"
-    DAWN = "dawn"
     DAY_DISCUSSION = "day_discussion"
     DAY_VOTING = "day_voting"
     DAY_CONFIRM = "day_confirm"
@@ -50,6 +49,11 @@ class Player:
     items: dict[str, int] = field(default_factory=dict)
     contract_target: int | None = None
     shield_used: bool = False
+    # 🔫 Miltiq /sumka dagi yoqish-o'chirishga bog'liq emas: o'yin boshida egasidagi soni olinadi.
+    rifle_count: int = 0
+    rifle_used: bool = False
+    # Geroy belgisi (🦸N) uchun darajasi — o'yinda Geroy o'chirilgan bo'lsa ham ko'rinadi.
+    hero_badge: int = 0
     hero_level: int = 0
     # O'yin boshidagi rol (statistika uchun; Bo'ri/Serjant keyin rolini o'zgartirishi mumkin).
     initial_role: Role | None = None
@@ -138,11 +142,8 @@ class Game:
     lobby_last_edit: float = 0.0
     lobby_edit_task: "asyncio.Task | None" = None
 
-    # dawn phase state (Geroy buyumi)
-    dawn_event: "asyncio.Event | None" = None
-    dawn_needed: int = 0
-    dawn_acted: set[int] = field(default_factory=set)
-    dawn_shots: dict[int, int] = field(default_factory=dict)
+    # Tungi Geroy zarbalari: otuvchi -> nishon.
+    hero_shots: dict[int, int] = field(default_factory=dict)
 
     # day phase state
     day_votes: dict[int, int | None] = field(default_factory=dict)

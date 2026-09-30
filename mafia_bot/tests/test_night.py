@@ -14,7 +14,7 @@ class NightTestCase(unittest.IsolatedAsyncioTestCase):
             "game.engine.db",
             consume_item=AsyncMock(return_value=True),
             add_balance=AsyncMock(),
-            add_item=AsyncMock(),
+            add_item=AsyncMock(), item_count=AsyncMock(return_value=0),
         )
         self.db.start()
         self.bot = make_bot()
@@ -58,21 +58,64 @@ class MafiaKillTest(NightTestCase):
 
     async def test_rifle_pierces_shield(self):
         game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
-        game.players[1].items = {"rifle": 1}
+        game.players[1].rifle_count = 1
         game.players[2].items = {"shield": 1}
         game.mafia_votes = {1: 2}
         game.mafia_rifle_users = {1}
         await engine.resolve_night(self.bot, game)
         self.assertFalse(game.players[2].alive)
+        self.assertTrue(game.players[1].rifle_used)
+        self.assertEqual(game.players[2].items["shield"], 1)  # teshilgan Himoya sarflanmaydi
 
-    async def test_mirror_bounces_to_mafia(self):
+    async def test_rifle_not_spent_without_shield(self):
         game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
-        game.players[2].items = {"mirror": 1}
+        game.players[1].rifle_count = 1
         game.mafia_votes = {1: 2}
+        game.mafia_rifle_users = {1}
         await engine.resolve_night(self.bot, game)
-        self.assertTrue(game.players[2].alive)
-        self.assertFalse(game.players[1].alive)
-        self.assertEqual(game.night_kills[1], 2)
+        self.assertFalse(game.players[1].rifle_used)
+        self.assertEqual(game.players[1].rifle_count, 1)
+
+    async def test_rifle_prefers_don_and_ignores_other_target(self):
+        game = make_game(Role.DON, Role.MAFIA, Role.MAFIA, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
+        for uid in (1, 2, 3):
+            game.players[uid].rifle_count = 1
+        game.players[4].items = {"shield": 1}
+        game.mafia_votes = {1: 4, 2: 4, 3: 5}
+        game.mafia_rifle_users = {1, 2, 3}
+        await engine.resolve_night(self.bot, game)
+        self.assertFalse(game.players[4].alive)
+        self.assertTrue(game.players[1].rifle_used)
+        self.assertFalse(game.players[2].rifle_used)
+        self.assertFalse(game.players[3].rifle_used)
+
+    async def test_rifle_disabled_in_no_items_mode(self):
+        game = make_game(Role.DON, Role.CIVILIAN)
+        game.players[1].rifle_count = 1
+        game.settings.mode = "noitems"
+        self.assertFalse(engine.rifle_available(game, game.players[1]))
+
+    async def test_attackers_told_target_survived(self):
+        game = make_game(Role.DON, Role.LAWYER, Role.DOCTOR, Role.CIVILIAN, Role.CIVILIAN)
+        game.mafia_votes = {1: 4}
+        game.doctor_targets = {3: 4}
+        await engine.resolve_night(self.bot, game)
+        for uid in (1, 2):
+            self.assertIn(texts.TARGET_SURVIVED, private_texts(self.bot, uid))
+
+    async def test_mirror_bounces_to_voter(self):
+        game = make_game(Role.DON, Role.LAWYER, Role.CIVILIAN, Role.CIVILIAN)
+        game.players[3].items = {"mirror": 1}
+        game.mafia_votes = {1: 3}
+        game.state = engine.GameState.NIGHT
+        await engine.resolve_night(self.bot, game)
+        self.assertTrue(game.players[3].alive)
+        self.assertFalse(game.players[1].alive)  # ovoz bergan Don
+        self.assertTrue(game.players[2].alive)  # Advokat ovoz bermagan
+        self.assertEqual(game.night_kills[1], 3)
+        group = "\n".join(c.args[1] for c in self.bot.send_message.call_args_list if c.args[0] == game.chat_id)
+        self.assertNotIn("🔮", group)
+        self.assertIn(texts.ITEM_USED["mirror"].format(left=0), private_texts(self.bot, 3))
 
     async def test_sorcerer_drags_mafia(self):
         game = make_game(Role.DON, Role.SORCERER, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
@@ -120,7 +163,7 @@ class WandererTest(NightTestCase):
         game = self._game()
         game.players[1].items = {"mask": 1}
         await engine.resolve_night(self.bot, game)
-        self.assertEqual(private_texts(self.bot, 2), [])
+        self.assertEqual(private_texts(self.bot, 2), [texts.WANDERER_SAW_NOTHING.format(victim="P3")])
         self.assertEqual(game.players[1].items["mask"], 0)
 
     async def test_mask_on_victim_does_nothing(self):
@@ -167,25 +210,6 @@ class MinerTest(NightTestCase):
         engine.db.add_balance.assert_not_awaited()
         engine.db.add_item.assert_not_awaited()
         self.assertEqual(msgs, [texts.MINER_FOUND_NOTHING])
-
-
-class DawnTest(NightTestCase):
-    async def test_dawn_runs_without_heroes(self):
-        game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
-        with patch.object(engine.asyncio, "sleep", AsyncMock()) as sleep:
-            await engine.dawn_phase(self.bot, game)
-        dawn = game.settings.seconds("dawn")
-        sleep.assert_awaited_once_with(dawn)
-        self.assertEqual(game.state, GameState.DAWN)
-        group = [c.args[1] for c in self.bot.send_message.call_args_list if c.args[0] == game.chat_id]
-        self.assertEqual(group, [texts.DAWN_ANNOUNCEMENT.format(seconds=engine._secs(dawn))])
-
-    async def test_no_dawn_when_hero_disabled(self):
-        game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
-        game.settings.hero_enabled = False
-        await engine.dawn_phase(self.bot, game)
-        self.bot.send_message.assert_not_awaited()
-        self.assertNotEqual(game.state, GameState.DAWN)
 
 
 class PoisonTest(NightTestCase):
@@ -237,20 +261,70 @@ class ItemLimitTest(NightTestCase):
     async def test_hero_shoots_once_per_game(self):
         game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
         game.players[1].hero_level = 1
-
-        def shoot_at(target):
-            async def _sleep(_):
-                game.dawn_shots[1] = target  # Geroy tong davomida tugmani bosdi
-            return AsyncMock(side_effect=_sleep)
-
-        with patch.object(engine.asyncio, "sleep", shoot_at(2)):
-            await engine.dawn_phase(self.bot, game)
+        game.hero_shots = {1: 2}
+        await engine.resolve_night(self.bot, game)
         self.assertFalse(game.players[2].alive)
+        self.assertFalse(engine.hero_can_shoot(game, game.players[1]))
 
-        with patch.object(engine.asyncio, "sleep", shoot_at(3)):
-            await engine.dawn_phase(self.bot, game)
-        self.assertEqual(game.dawn_needed, 0)
+    async def test_hero_shot_kept_if_target_already_dead(self):
+        game = make_game(Role.DON, Role.MAFIA, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
+        game.players[1].hero_level = 1
+        game.mafia_votes = {1: 3, 2: 3}
+        game.hero_shots = {1: 3}
+        await engine.resolve_night(self.bot, game)
+        self.assertFalse(game.players[3].alive)
+        self.assertTrue(engine.hero_can_shoot(game, game.players[1]))
+        self.assertIn(texts.HERO_SHOT_KEPT, private_texts(self.bot, 1))
+
+    async def test_mirror_kills_hero_shooter(self):
+        game = make_game(Role.DETECTIVE, Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
+        game.players[1].hero_level = 3
+        game.players[2].items = {"mirror": 1}
+        game.hero_shots = {1: 2}
+        game.state = engine.GameState.NIGHT
+        await engine.resolve_night(self.bot, game)
+        self.assertTrue(game.players[2].alive)
+        self.assertFalse(game.players[1].alive)
+        group = "\n".join(c.args[1] for c in self.bot.send_message.call_args_list if c.args[0] == game.chat_id)
+        self.assertNotIn("🔮", group)  # guruhga buyum nomi aytilmaydi
+
+    async def test_hero_level_10_ignores_protection(self):
+        game = make_game(Role.DON, Role.CIVILIAN, Role.CIVILIAN, Role.CIVILIAN)
+        game.players[1].hero_level = 10
+        game.players[2].items = {"mirror": 1, "hero_immunity": 1}
+        game.hero_shots = {1: 2}
+        await engine.resolve_night(self.bot, game)
+        self.assertFalse(game.players[2].alive)
+        self.assertEqual(game.players[2].items, {"mirror": 1, "hero_immunity": 1})
+
+
+class ItemRulesTest(NightTestCase):
+    async def test_poison_shield_not_spent_when_doctor_heals(self):
+        game = make_game(Role.DON, Role.POISONER, Role.DOCTOR, Role.CIVILIAN, Role.CIVILIAN)
+        game.day_number = 2
+        game.pending_poison = {4: 2}
+        game.doctor_targets = {3: 4}
+        game.players[4].items = {"poison_shield": 1}
+        await engine.resolve_night(self.bot, game)
+        self.assertTrue(game.players[4].alive)
+        self.assertEqual(game.players[4].items["poison_shield"], 1)
+
+    async def test_poison_shield_saves(self):
+        game = make_game(Role.DON, Role.POISONER, Role.CIVILIAN, Role.CIVILIAN)
+        game.day_number = 2
+        game.pending_poison = {3: 2}
+        game.players[3].items = {"poison_shield": 1}
+        await engine.resolve_night(self.bot, game)
         self.assertTrue(game.players[3].alive)
+        self.assertEqual(private_texts(self.bot, 2), [])  # Kezuvchi hech narsa bilmaydi
+
+    async def test_shield_not_spent_when_doctor_saves(self):
+        game = make_game(Role.DON, Role.DOCTOR, Role.CIVILIAN, Role.CIVILIAN)
+        game.players[3].items = {"shield": 1}
+        game.mafia_votes = {1: 3}
+        game.doctor_targets = {2: 3}
+        await engine.resolve_night(self.bot, game)
+        self.assertEqual(game.players[3].items["shield"], 1)
 
 
 if __name__ == "__main__":

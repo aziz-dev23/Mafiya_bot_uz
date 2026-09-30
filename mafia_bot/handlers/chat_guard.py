@@ -9,7 +9,7 @@ from game.settings import LOCK_ALL
 router = Router(name="chat_guard")
 
 # O'yin davomida guruhda faqat kunduzi yozish mumkin — tun va tong bosqichlarida xabarlar o'chiriladi.
-NIGHT_STATES = (GameState.NIGHT, GameState.DAWN)
+NIGHT_STATES = (GameState.NIGHT,)
 DAY_STATES = (GameState.DAY_DISCUSSION, GameState.DAY_VOTING, GameState.DAY_CONFIRM)
 
 

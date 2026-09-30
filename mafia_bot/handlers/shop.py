@@ -52,7 +52,7 @@ def shop_view(L=texts) -> tuple[str, InlineKeyboardMarkup]:
         for diamonds, stars in STARS_PACKAGES
     ]
     rows = [stars_buttons[i : i + 2] for i in range(0, len(stars_buttons), 2)]
-    lines = [L.SHOP_TITLE, "", L.SHOP_STARS_SECTION]
+    lines = [L.SHOP_TITLE, L.SHOP_WHY_DIAMONDS, "", L.SHOP_STARS_SECTION]
     if card_payments_available():
         rows += build_shop_keyboard(L).inline_keyboard
         lines += ["", L.SHOP_CARD_SECTION]

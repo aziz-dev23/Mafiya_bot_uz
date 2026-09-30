@@ -13,7 +13,7 @@ from i18n import LANGS, RU, UZ, UZ_CYRL, get_texts, to_cyrillic
 LANGUAGE_NEUTRAL = {
     "MAFIA_CHAT_LINE", "MAFIA_VOTE_LINE", "MAFIA_VOTE_PENDING", "DEAD_CHAT_LINE", "H_MAFIA_VOTE", "H_VOTE",
     "SETTINGS_ON", "SETTINGS_OFF", "SHOP_STARS_BUTTON", "INVOICE_LABEL", "PAYSUPPORT_PAYMENT_LINE",
-    "PROFILE_ITEM_ON", "PROFILE_ITEM_OFF",
+    "PROFILE_ITEM_ON", "PROFILE_ITEM_OFF", "ROLE_ITEMS_LINE", "HERO_BADGE", "ITEM_INFO_BUTTON",
 }
 
 
@@ -143,7 +143,7 @@ class PerPlayerLanguageTest(unittest.IsolatedAsyncioTestCase):
         game.players[2].lang = RU
         game.state = GameState.NIGHT
         bot = make_bot()
-        with patch.multiple("game.engine.db", add_balance=AsyncMock(), add_item=AsyncMock(), consume_item=AsyncMock()), \
+        with patch.multiple("game.engine.db", add_balance=AsyncMock(), add_item=AsyncMock(), item_count=AsyncMock(return_value=0), consume_item=AsyncMock()), \
              patch.object(engine.random, "random", return_value=0.99):
             await engine.resolve_night(bot, game)
         self.assertEqual(private_texts(bot, 2), [texts_ru.MINER_FOUND_NOTHING])

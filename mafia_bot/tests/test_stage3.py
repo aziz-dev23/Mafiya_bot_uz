@@ -34,7 +34,7 @@ class NewRolesDistributionTest(unittest.TestCase):
 class NightBase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.db = patch.multiple(
-            "game.engine.db", consume_item=AsyncMock(return_value=True), add_balance=AsyncMock(), add_item=AsyncMock()
+            "game.engine.db", consume_item=AsyncMock(return_value=True), add_balance=AsyncMock(), add_item=AsyncMock(), item_count=AsyncMock(return_value=0)
         )
         self.db.start()
         self.bot = make_bot()

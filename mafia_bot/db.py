@@ -306,29 +306,17 @@ async def points_summary(user_id: int) -> dict[str, int]:
 
 
 async def top_points(since: int | None = None, limit: int = 10, until: int | None = None) -> list[aiosqlite.Row]:
-    """Reyting: `since` bo'lsa shu unix-vaqtdan beri (`until` bo'lsa undan oldingacha), aks holda umumiy TOP."""
-    if until is not None:
-        cur = await _conn.execute(
-            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
-            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
-            "WHERE points_log.created_at >= ? AND points_log.created_at < ? "
-            "GROUP BY points_log.user_id ORDER BY total DESC, points_log.user_id LIMIT ?",
-            (since or 0, until, limit),
-        )
-    elif since is None:
-        cur = await _conn.execute(
-            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
-            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
-            "GROUP BY points_log.user_id ORDER BY total DESC LIMIT ?",
-            (limit,),
-        )
-    else:
-        cur = await _conn.execute(
-            "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total "
-            "FROM points_log JOIN users ON users.user_id = points_log.user_id "
-            "WHERE points_log.created_at >= ? GROUP BY points_log.user_id ORDER BY total DESC LIMIT ?",
-            (since, limit),
-        )
+    """Reyting: `since` bo'lsa shu unix-vaqtdan beri (`until` bo'lsa undan oldingacha), aks holda umumiy TOP.
+    Har bir qatorda Geroy darajasi ham qaytadi (🦸N belgisi uchun)."""
+    cur = await _conn.execute(
+        "SELECT points_log.user_id AS user_id, users.full_name AS full_name, SUM(points_log.points) AS total, "
+        "COALESCE(hero.level, 0) AS hero_level "
+        "FROM points_log JOIN users ON users.user_id = points_log.user_id "
+        "LEFT JOIN hero ON hero.user_id = points_log.user_id "
+        "WHERE points_log.created_at >= ? AND points_log.created_at < ? "
+        "GROUP BY points_log.user_id ORDER BY total DESC, points_log.user_id LIMIT ?",
+        (since or 0, until if until is not None else 2**62, limit),
+    )
     rows = await cur.fetchall()
     await cur.close()
     return rows
@@ -663,3 +651,10 @@ async def take_diamonds(user_id: int, amount: int, allow_partial: bool) -> int |
 async def set_user_lang(user_id: int, lang: str) -> None:
     await _conn.execute("UPDATE users SET lang = ? WHERE user_id = ?", (lang, user_id))
     await _conn.commit()
+
+
+async def item_count(user_id: int, item_key: str) -> int:
+    cur = await _conn.execute("SELECT count FROM inventory WHERE user_id = ? AND item_key = ?", (user_id, item_key))
+    row = await cur.fetchone()
+    await cur.close()
+    return row["count"] if row else 0

@@ -135,6 +135,7 @@ HELP_TEXT = (
     "/market — bozordagi faol e'lonlarni ko'rish va sotib olish\n"
     "/dokon — buyumlar do'koni (Himoya, Soxta hujjat, Ovozdan himoya, Miltiq, Sehrli oyna)\n"
     "/sumka — buyumlaringiz, o'yin oldidan yoqish/o'chirish\n"
+    "/buyumlar — barcha buyumlar nima qilishi\n"
     "/send — boshqa foydalanuvchiga Dollar yuborish\n"
     "/sendgem — boshqa foydalanuvchiga Olmos yuborish\n"
     "/geroy — Geroyni sotib olish / darajasini oshirish\n"
@@ -165,8 +166,8 @@ ITEM_DESCRIPTIONS = {
     "fake_doc": "Komissar sizni tekshirsa — natija \"mafiya emas\" chiqadi.",
     "vote_shield": "Kunduzi ovoz bilan haydalish tasdiqlansa ham omon qolasiz.",
     "rifle": "Mafiya/Don uchun: tunda yoqilsa, nishonning 🛡 Himoyasini teshib o'tadi.",
-    "mirror": "Mafiya o'qini qaytaradi — o'rningizga tasodifiy Mafiya a'zosi halok bo'ladi. "
-    "Geroy zarbasini ham qaytaradi (10+ darajali Geroydan tashqari).",
+    "mirror": "Hujumni qaytaradi: Mafiya hujumida sizga ovoz bergan Don/Mafiyalardan biri, "
+    "Geroy zarbasida (10+ darajadan tashqari) otgan Geroyning o'zi halok bo'ladi.",
     "killer_shield": "Qotil yoki Yollanma qotil hujumidan bir marta himoya qiladi.",
     "poison_shield": "Kezuvchi bergan dorini zararsizlantiradi.",
     "mask": "Siz kimnidir o'ldirganingizda, qurbonning oldiga borgan Daydi qotil kimligini bila olmaydi.",
@@ -178,7 +179,6 @@ MAFIA_KILL_PROMPT = "🔪 Kimni yo'q qilmoqchisiz?\nSheriklaringiz: {teammates}"
 HITMAN_KILL_PROMPT = "🥷 Kimni yo'q qilmoqchisiz?\nSheriklaringiz: {teammates}"
 NO_TEAMMATES = "yo'q"
 NOT_FOR_TEAMMATE = "O'z sherigingizni tanlay olmaysiz."
-DAWN_ANNOUNCEMENT = "🌄 <b>Tong otmoqda...</b>\n⏳ Kun boshlanishiga {seconds} soniya qoldi."
 WANDERER_SAW_KILLER = "🚶 Siz tashrif buyurgan {victim} shu kecha halok bo'ldi. Uni <b>{killer}</b> o'ldirdi!"
 MINER_FOUND_COINS = "⛏ Tungi qazilmadan {amount}🪙 Coin topdingiz! Hisobingizga qo'shildi."
 MINER_FOUND_ITEM = "⛏ Tungi qazilmadan {emoji} {name} topdingiz! Sumkangizga qo'shildi."
@@ -341,7 +341,6 @@ MAFIA_VOTE_CHOSEN = "🔪 Siz tanladingiz: {name}\nVaqt tugaguncha o'zgartirishi
 # O'yin tarixi
 HISTORY_HEADER = "📜 <b>O'yin tarixi</b>"
 HISTORY_NIGHT = "\n🌙 <b>Tun {n}</b>"
-HISTORY_DAWN = "\n🌄 <b>Tong {n}</b>"
 HISTORY_DAY = "\n☀️ <b>Kun {n}</b>"
 H_MAFIA_VOTE = "🔪 {voter} → {target}"
 H_DOCTOR = "💉 {actor} {target}ni himoya qildi"
@@ -410,7 +409,6 @@ SETTINGS_LOCK_PLAYERS = "faqat o'yinchilar"
 SETTINGS_MODE_NAMES = {"classic": "Klassik", "fast": "Tezkor (×0.5 vaqt)", "noitems": "Buyumsiz"}
 SETTINGS_TIME_NAMES = {
     "night": "🌌 Tun",
-    "dawn": "🌄 Tong",
     "discussion": "☀️ Muhokama",
     "vote": "🗳 Ovoz berish",
     "confirm": "⚖️ Tasdiq",
@@ -512,20 +510,11 @@ WOLF_TURNED = (
     "🐺 Mafiya sizni tunda yo'q qilishga urindi... lekin siz aslida ulardan ekansiz! "
     "Siz endi Mafiya jamoasining a'zosisiz.\nSherik mafiyalar: {teammates}"
 )
-MIRROR_SAVED = "🔮 Sehrli oynangiz o'qni qaytardi! Siz omon qoldingiz."
-PREFIX_MIRROR = "🔮 Tun natijasi: mafiyaning o'qi qaytib,"
-SHIELD_SAVED = "🛡 Himoyangiz sizni mafiya hujumidan saqlab qoldi! (bu o'yinda yana ishlamaydi)"
 PREFIX_MAFIA = "☠️ Tun natijasi:"
 SORCERER_DRAGGED = "🧞‍♂️ Afsungar o'limidan oldin <b>{name}</b>ni ham o'zi bilan olib ketdi!{role}"
-KILLER_SHIELD_SAVED = "⛑ Qotildan himoyangiz sizni saqlab qoldi!"
 PREFIX_KILLER = "🔪 Tun natijasi: noma'lum qotil tomonidan"
 PREFIX_HITMAN = "🥷 Tun natijasi: yollanma qotil tomonidan"
 HITMAN_CONTRACT_DONE = "🎯 Buyurtmangizni bajardingiz! +{amount}💵 bonus oldingiz."
-HERO_PROMPT = "🦸 Siz Geroysiz — tongda zarba berish huquqingiz bor! Kimni otmoqchisiz? (xohlamasangiz e'tiborsiz qoldiring)"
-HERO_MIRROR_SHOOTER = "🔮 Nishoningizning sehrli oynasi zarbangizni qaytardi!"
-HERO_MIRROR_TARGET = "🔮 Sehrli oynangiz Geroy zarbasidan sizni asradi!"
-HERO_IMMUNITY_SAVED = "🔰 Geroydan himoyangiz sizni zarbadan asradi!"
-PREFIX_HERO = "🦸 Geroy zarbasi:"
 SORCERER_LAST_WORDS = "🧞‍♂️ Lekin Afsungar so'nggi so'zini aytishga ulguradi..."
 SORCERER_REVENGE_PROMPT = "🧞‍♂️ O'limingizdan oldin kimdan o'ch olmoqchisiz?"
 PREFIX_REVENGE = "🧞‍♂️ Afsungarning o'chi:"
@@ -556,8 +545,8 @@ DEAD_MARK = " (⚰️ halok)"
 GAME_DURATION = "⏱ O'yin: {minutes} daqiqa davom etdi"
 RANKING_HINT = "🏅 Reyting uchun: /top (jami), /top1 (kunlik), /top7 (haftalik), /top30 (oylik)"
 GAME_ERROR = "⚠️ O'yinda kutilmagan xatolik yuz berdi, o'yin to'xtatildi."
-RIFLE_ON = "🔫 Miltiq bilan otish: YONIQ ✅"
-RIFLE_OFF = "🔫 Miltiq bilan otish: O'CHIQ"
+RIFLE_ON = "🔫 Miltiq: yoqiq ✅"
+RIFLE_OFF = "🔫 Miltiq: o'chiq"
 PAYOUT_ROLE_LINE = "🎭 Rolingiz: {role} ({status})"
 PAYOUT_ALIVE = "🟢 tirik"
 PAYOUT_DEAD = "⚰️ halok"
@@ -643,7 +632,7 @@ MARKET_SOLD_NOTICE = "💰 E'loningiz #{id} sotildi: {sell} → {price} hisobing
 STORE_TEXT = (
     "🎒 <b>BUYUMLAR DO'KONI</b>\n"
     "O'yin ichida foydali bo'ladigan buyumlarni sotib oling. Sotib olingan buyum avtomatik "
-    "yoniq (YONIQ) holatda bo'ladi — /sumka orqali o'chirib qo'yishingiz mumkin.\n\n"
+    "yoqilgan (✅) holatda bo'ladi — /sumka orqali o'chirib qo'yishingiz mumkin.\n\n"
     "{rule}\n\nKerakli buyumni tanlang:"
 )
 ITEM_NOT_FOUND = "Bu buyum topilmadi."
@@ -655,9 +644,9 @@ ITEM_BOUGHT_ALERT = "✅ {qty} ta {emoji} {name} sotib olindi!"
 ITEM_BOUGHT = "✅ Xarid qilindi: {qty} ta {emoji} {name} (-{price})"
 INVENTORY_EMPTY = "🎒 Sizda hali hech qanday buyum yo'q.\n\n/dokon orqali sotib olishingiz mumkin."
 INVENTORY_TITLE = "🎒 <b>MENING BUYUMLARIM</b>"
-ITEM_STATE_ON = "🟢 YONIQ"
-ITEM_STATE_OFF = "🔴 O'CHIQ"
-INVENTORY_LINE = "{emoji} {name}: {count} ta — {state}"
+ITEM_STATE_ON = "✅"
+ITEM_STATE_OFF = "❌"
+INVENTORY_LINE = "{state} {emoji} {name}: {count} ta"
 ITEM_TURN_OFF = "O'chirish"
 ITEM_TURN_ON = "Yoqish"
 ITEM_NOT_OWNED = "Bu buyum sizda yo'q."
@@ -680,8 +669,8 @@ PROFILE_HERO_NONE = "yo'q (/geroy)"
 PROFILE_ITEM_LINE = "{emoji} {name}: {count} ta"
 PROFILE_GAMES = "🎮 O'yinlar: {games} | 🏆 G'alabalar: {wins}"
 PROFILE_TOGGLE_HINT = "⚙️ Buyumlarni yoqish/o'chirish uchun pastdagi tugmalarni bosing:"
-PROFILE_ITEM_ON = "🟢 ON"
-PROFILE_ITEM_OFF = "🔴 OFF"
+PROFILE_ITEM_ON = "✅"
+PROFILE_ITEM_OFF = "❌"
 MAIN_MENU_BUTTON = "🏠 Bosh menyu"
 ADMIN_REPLY_USAGE = "Foydalanish: xabarga reply qiling va miqdorni yozing, masalan /addcash 1000"
 ADMIN_USAGE = "Foydalanish: /addcash &lt;user_id&gt; &lt;miqdor&gt; yoki xabarga reply qilib /addcash &lt;miqdor&gt;"
@@ -692,7 +681,7 @@ HERO_INTRO = (
     "🦸 <b>GEROY</b>\n\n"
     "Geroy — bir marta sotib olinadigan va profilingizda umrbod qoladigan maxsus buyum.\n"
     "Darajasini cheksiz oshirish mumkin.\n\n"
-    "🎭 Mafiya, Don yoki Komissar bo'lib qolgan o'yinlarda tongda nishonni otish huquqi beradi "
+    "🎭 Mafiya, Don yoki Komissar bo'lib qolgan o'yinlarda tunda nishonni otish huquqi beradi "
     "(bir o'yinda 1 marta).\n"
     "🔓 {bypass}-darajadan boshlab zarbangiz HAR QANDAY himoyani chetlab o'tadi.\n\n"
     "Narxi: {price}💎"
@@ -815,7 +804,6 @@ CONFIRM_NO = "👎 Yo'q"
 
 # ---------- Tungi tugmalar ----------
 NOT_NIGHT = "Hozir tun emas."
-NOT_DAWN = "Hozir tong emas."
 ALREADY_CHECKED = "Siz bu kecha allaqachon tekshirgansiz."
 ALREADY_POISONED = "Siz bu kecha allaqachon dori bergansiz."
 ALREADY_USED_ABILITY = "Siz bu imkoniyatdan allaqachon foydalangansiz."
@@ -867,6 +855,7 @@ BOT_COMMANDS = {
     "market": "Bozor — valyutalar savdosi",
     "dokon": "Buyumlar do'koni (Himoya, Miltiq va h.k.)",
     "sumka": "Mening buyumlarim (yoqish/o'chirish)",
+    "buyumlar": "Barcha buyumlar tavsifi",
     "send": "Boshqa foydalanuvchiga Dollar yuborish",
     "sendgem": "Boshqa foydalanuvchiga Olmos yuborish",
     "profile": "Profilingiz (balans, statistika)",
@@ -883,3 +872,107 @@ BOT_COMMANDS = {
     "paysupport": "To'lovlar bo'yicha yordam",
     "terms": "Foydalanish shartlari",
 }
+
+# ---------- 6-bosqich: buyumlar ----------
+# Buyum haqiqatan ishlaganda egasiga boradigan xabar ({left} — qolgan dona).
+ITEM_USED = {
+    "shield": "🛡 Himoyangiz sizni Mafiya hujumidan qutqardi. Qoldi: {left} dona.",
+    "fake_doc": "📁 Soxta hujjatingiz Komissarni aldadi — natija \"mafiya emas\" chiqdi. Qoldi: {left} dona.",
+    "vote_shield": "⚖️ Ovozdan himoyangiz sizni haydalishdan qutqardi. Qoldi: {left} dona.",
+    "rifle": "🔫 Miltiqingiz nishonning himoyasini teshib o'tdi. Qoldi: {left} dona.",
+    "mirror": "🔮 Sehrli oynangiz hujumni qaytardi, siz omon qoldingiz. Qoldi: {left} dona.",
+    "killer_shield": "⛑ Qotildan himoyangiz sizni qutqardi. Qoldi: {left} dona.",
+    "poison_shield": "💊 Doridan himoyangiz sizga berilgan zaharni zararsizlantirdi. Qoldi: {left} dona.",
+    "mask": "🎭 Maskangiz sizni Daydidan yashirdi. Qoldi: {left} dona.",
+    "hero_immunity": "🔰 Geroydan himoyangiz sizni zarbadan qutqardi. Qoldi: {left} dona.",
+}
+TARGET_SURVIVED = "🎯 Nishon omon qoldi."
+WANDERER_SAW_NOTHING = "🚶 Siz tashrif buyurgan {victim} shu kecha halok bo'ldi, lekin siz hech narsa ko'rmadingiz."
+HERO_NIGHT_PROMPT = "🦸 Geroy zarbasi (ixtiyoriy, o'yinda 1 marta). Kimni otmoqchisiz?"
+HERO_SHOT_KEPT = "🦸 Nishoningiz shu tunda boshqa sababdan halok bo'ldi — Geroy zarbangiz saqlanib qoldi."
+ROLE_ITEMS_HEADER = "🎒 <b>Shu o'yinda yoqilgan buyumlaringiz:</b>"
+ROLE_ITEMS_NONE = "🎒 Shu o'yinda yoqilgan buyumlaringiz yo'q."
+ROLE_ITEMS_LINE = "{emoji} {name}"
+ROLE_ITEMS_RIFLE = "🔫 Miltiq: {count} dona — tunda nishon tanlash xabaridagi tugma orqali"
+NO_ITEMS_NOTICE = "🚫 Bu o'yin <b>buyumsiz</b>: buyumlar va Geroy ishlamaydi, hech narsa sarflanmaydi."
+INVENTORY_RIFLE_LINE = "🔫 Miltiq: {count} ta — tunda qo'lda ishlatiladi (yoqish shart emas)"
+HERO_BADGE = " 🦸{level}"
+ITEM_INFO_BUTTON = "ℹ️"
+ITEMS_LIST_HEADER = "🎒 <b>Barcha buyumlar</b>\nSotib olish: /dokon · Yoqish/o'chirish: /sumka"
+ITEM_BOUGHT_CARD = "✅ Xarid: {qty} ta {emoji} {name}. Buyum haqida:"
+SHOP_WHY_DIAMONDS = "💎 Olmos nimaga kerak: buyumlar (/dokon), 🦸 Geroy, 💵 ga almashtirish va do'stlarga sovg'a (/sendgem)."
+ITEM_CARD = (
+    "{emoji} <b>{name}</b> — {price}\n\n"
+    "<b>Nima qiladi:</b> {what}\n"
+    "<b>Kimga foydali:</b> {who}\n"
+    "<b>Qanday ishlatiladi:</b> {how}\n"
+    "<b>Sarflanadimi:</b> {spent}"
+)
+ITEM_INFO = {
+    "shield": {
+        "what": "Tunda Mafiya hujumini to'xtatadi, siz omon qolasiz. Hujumchi 🔫 Miltiq ishlatsa, ishlamaydi. "
+        "Qotil, Yollanma qotil, Kezuvchi zahari va Geroyga qarshi ishlamaydi.",
+        "who": "Hamma o'yinchiga, ayniqsa tinch aholi va Komissar, Doktor kabi muhim rollarga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat sizni qutqarganda 1 dona. Doktor qutqargan bo'lsa, sarflanmaydi.",
+    },
+    "fake_doc": {
+        "what": "Komissar sizni tekshirsa, natija \"mafiya emas\" chiqadi (Serjant ham shuni ko'radi). "
+        "Jurnalist va Josusni aldamaydi.",
+        "who": "Mafiya jamoasiga: Don, Mafiya, Advokat, Yollanma qotil, Josus.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat Mafiya jamoasida bo'lsangiz va shu kecha sizni Advokat himoya qilmagan bo'lsa, 1 dona.",
+    },
+    "vote_shield": {
+        "what": "Kunduzgi ovoz sizni haydashni tasdiqlasa ham omon qolasiz, rolingiz ochilmaydi. "
+        "Guruhga shu haqda e'lon qilinadi.",
+        "who": "Kunduzi haydalish xavfi bor har kimga, ayniqsa Mafiya jamoasiga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat qutqarganda 1 dona. Sudya hukmni bekor qilsa, sarflanmaydi.",
+    },
+    "rifle": {
+        "what": "Mafiya nishonining 🛡 Himoyasini teshib o'tadi. Doktor, Tansoqchi va 🔮 Sehrli oynaga ta'sir qilmaydi.",
+        "who": "Don va Mafiyaga.",
+        "how": "Tunda nishon tanlash xabaridagi \"🔫 Miltiq\" tugmasini yoqing. /sumka da yoqish shart emas.",
+        "spent": "Faqat Himoyani haqiqatan teshganda 1 dona (o'yinda 1 marta).",
+    },
+    "mirror": {
+        "what": "Hujumni qaytaradi, siz omon qolasiz. Mafiya hujumida o'rningizga shu nishonga ovoz bergan Don "
+        "yoki Mafiyalardan biri o'ladi. 10-darajadan past Geroy otsa, otgan kishining o'zi o'ladi.",
+        "who": "Hamma o'yinchiga, ayniqsa Mafiya ov qiladigan tinch rollarga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat hujumni qaytarganda 1 dona.",
+    },
+    "killer_shield": {
+        "what": "Qotil yoki Yollanma qotil hujumini to'xtatadi, siz omon qolasiz (Yollanma buyurtmasi bajarilmaydi).",
+        "who": "Hamma o'yinchiga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat qutqarganda 1 dona.",
+    },
+    "poison_shield": {
+        "what": "Kezuvchi zaharini zararsizlantiradi. Kezuvchi buni bilmaydi.",
+        "who": "Hamma o'yinchiga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Zahar ta'sir qiladigan kechada 1 dona. O'sha kecha Doktor davolagan bo'lsa, sarflanmaydi.",
+    },
+    "mask": {
+        "what": "Siz o'ldirgan odamning oldiga Daydi borsa, u qotilni ko'rmaydi.",
+        "who": "Tunda o'ldiradigan rollarga: Don, Mafiya, Yollanma qotil, Qotil, Kezuvchi.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat Daydi haqiqatan kelganda 1 dona.",
+    },
+    "hero_immunity": {
+        "what": "10-darajadan past Geroy zarbasini to'xtatadi. 🔮 Sehrli oyna ham bo'lsa, avval oyna ishlaydi.",
+        "who": "Hamma o'yinchiga.",
+        "how": "/sumka da yoqib qo'ying (✅) — o'yinda o'zi ishlaydi.",
+        "spent": "Faqat qutqarganda 1 dona. 10+ darajali Geroyga qarshi ishlamaydi va sarflanmaydi.",
+    },
+}
+HERO_CARD = (
+    "🦸 <b>Geroy</b> — {price}💎 bir marta, har bir daraja {level_price}💎\n\n"
+    "<b>Nima qiladi:</b> tanlangan odam o'ladi. Doktor himoya qilmaydi, 🔮 va 🔰 to'xtatadi. "
+    "{bypass}-darajadan boshlab hech qanday himoya ishlamaydi. Boshqa darajalar faqat belgi (🦸N).\n"
+    "<b>Kimga foydali:</b> o'yinda Mafiya, Don yoki Komissar rolini olganingizda.\n"
+    "<b>Qanday ishlatiladi:</b> tunda shaxsiy chatga \"🦸 Geroy zarbasi\" tugmalari keladi, o'yinda 1 marta.\n"
+    "<b>Sarflanadimi:</b> yo'q, umrbod qoladi (/geroy)."
+)

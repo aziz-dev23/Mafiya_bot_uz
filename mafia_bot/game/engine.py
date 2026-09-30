@@ -41,6 +41,7 @@ from utils import (
     build_target_keyboard,
     build_vote_keyboard,
     esc,
+    hero_badge,
     mention,
     split_text,
 )
@@ -356,6 +357,7 @@ def _reset_night(game: Game) -> None:
     game.journalist_first.clear()
     game.cupid_pick.clear()
     game.guesses.clear()
+    game.hero_shots.clear()
     game.night_kills.clear()
     game.night_results.clear()
 
@@ -446,6 +448,18 @@ async def night_phase(bot: Bot, game: Game) -> None:
 
     prompt_tasks = [_safe_send_replace(bot, game, p.user_id, text, reply_markup=kb) for p, text, kb in prompts]
 
+    # Geroy zarbasi — ixtiyoriy, o'z harakatidan tashqari (tunni ushlab turmaydi).
+    for hero in _alive(game):
+        if hero_can_shoot(game, hero):
+            prompt_tasks.append(
+                _safe_send(
+                    bot,
+                    hero.user_id,
+                    pt(hero).HERO_NIGHT_PROMPT,
+                    reply_markup=build_target_keyboard(game, {hero.user_id}, "hero_shot"),
+                )
+            )
+
     # Don uchun ixtiyoriy tekshiruv (tunni ushlab turmaydi).
     for don in _alive(game, Role.DON):
         if not game.don_check_used:
@@ -527,14 +541,47 @@ def _pick_mafia_target(game: Game) -> int | None:
     return random.choice(candidates)
 
 
-async def _use_item(game: Game, player: Player, key: str) -> bool:
-    """O'yinchida yoqilgan buyum bo'lsa, bir donasini sarflaydi va True qaytaradi."""
+async def use_item(bot: Bot, game: Game, player: Player, key: str) -> bool:
+    """O'yinchida shu o'yinda yoqilgan buyum bo'lsa, bir donasini sarflaydi, tarixga yozadi va egasiga
+    "Qoldi: N dona" xabarini yuboradi. Buyum faqat natijani haqiqatan o'zgartirganda chaqiriladi."""
     if player.items.get(key, 0) <= 0 or not await db.consume_item(player.user_id, key):
         return False
     player.items[key] -= 1
     G = gt(game)
     log(game, G.H_ITEM.format(emoji=ITEMS[key]["emoji"], owner=_n(player), item=G.ITEM_NAMES[key]))
+    left = await db.item_count(player.user_id, key)
+    await _safe_send(bot, player.user_id, pt(player).ITEM_USED[key].format(left=left))
     return True
+
+
+async def _use_rifle(bot: Bot, game: Game, owner: Player) -> bool:
+    """🔫 Miltiq /sumka dagi yoqish-o'chirishga bog'liq emas — egasidagi sondan sarflanadi."""
+    if owner.rifle_used or owner.rifle_count <= 0 or not await db.consume_item(owner.user_id, "rifle"):
+        return False
+    owner.rifle_used = True
+    owner.rifle_count -= 1
+    G = gt(game)
+    log(game, G.H_ITEM.format(emoji=ITEMS["rifle"]["emoji"], owner=_n(owner), item=G.ITEM_NAMES["rifle"]))
+    left = await db.item_count(owner.user_id, "rifle")
+    await _safe_send(bot, owner.user_id, pt(owner).ITEM_USED["rifle"].format(left=left))
+    return True
+
+
+def rifle_available(game: Game, player: Player) -> bool:
+    """Miltiq tugmasi: Don/Mafiya, kamida 1 ta Miltiq, "Buyumsiz" rejim emas, shu o'yinda hali ishlatilmagan."""
+    return (
+        player.role in MAFIA_KILL_ROLES
+        and player.rifle_count > 0
+        and not player.rifle_used
+        and game.settings.items_active
+    )
+
+
+async def _notify_survived(bot: Bot, game: Game, attackers) -> None:
+    """Hujumchilarga nishon qaysi sabab bilan omon qolganidan qat'i nazar bir xil xabar."""
+    for attacker in attackers:
+        if attacker is not None:
+            await _safe_send(bot, attacker.user_id, pt(attacker).TARGET_SURVIVED)
 
 
 async def _bodyguard_intercepts(bot: Bot, game: Game, target: Player, attacker_id: int | None) -> bool:
@@ -557,12 +604,17 @@ async def _bodyguard_intercepts(bot: Bot, game: Game, target: Player, attacker_i
 async def resolve_night(bot: Bot, game: Game) -> None:
     """Tungi harakatlarni hal qiladi. Tartib:
     0) Kupidon juftligi (faqat 1-kecha, o'limlardan oldin — shu kechaning o'zida ham ishlaydi);
-    1) O'tgan kecha berilgan Kezuvchi dorisi (shu kecha Doktor himoya qilsa — ta'sirsiz);
-    2) Mafiya nishoni: Doktor → Bo'ri → Sehrli oyna → Himoya (Miltiqsiz) → Tansoqchi → o'lim → Afsungar;
-    3) Qotil: ⛑ → Tansoqchi → o'lim; 4) Yollanma qotil: ⛑ → Tansoqchi → o'lim (+buyurtma bonusi);
-    har bir o'limda: Don/Komissar vorisi, oshiqning ikkinchisi (_kill_player);
-    5) Daydiga natija; 6) Konchi qazilmasi; 7) "Kim o'ladi?" taxminlari; 8) Doktor cheklovlari.
-    Komissar, Don, Jurnalist va Josus natijalari tanlov paytida darhol beriladi (handlers/night.py)."""
+    1) Kezuvchi zahari (o'tgan kecha berilgan): Doktor → 💊 Doridan himoya → o'lim;
+    2) Mafiya hujumi: Doktor → Bo'ri aylanishi → 🔮 Sehrli oyna → 🛡 Himoya (🔫 Miltiq bo'lmasa)
+       → Tansoqchi → o'lim → Afsungar;
+    3) Qotil: ⛑ Qotildan himoya → Tansoqchi → o'lim;
+    4) Yollanma qotil: ⛑ → Tansoqchi → o'lim (+buyurtma bonusi);
+    5) Geroy zarbasi: 🔮 Sehrli oyna → 🔰 Geroydan himoya → o'lim (10+ darajada hech narsa to'xtatmaydi,
+       Doktor himoya qilmaydi; nishon shu tunda boshqa sababdan o'lgan bo'lsa, zarba hisobga olinmaydi);
+    har bir o'limda: Don/Komissar vorisi, oshiqning ikkinchisi (_kill_player, hech bir buyum ta'sir qilmaydi);
+    6) Daydiga natija (qotilda 🎭 Maska bo'lsa — hech narsa ko'rmaydi); 7) Konchi; 8) taxminlar; 9) Doktor cheklovlari.
+    Qaytgan o'q (🔮) to'g'ridan-to'g'ri o'ldiradi — unga hech qanday himoya ishlamaydi.
+    Komissar (Advokat → 📁 Soxta hujjat), Don, Jurnalist va Josus natijalari tanlov paytida beriladi."""
     G = gt(game)
     doctors_by_target: dict[int, list[int]] = {}
     for doctor_id, target_id in game.doctor_targets.items():
@@ -577,7 +629,7 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     _log_night_choices(game)
     await _resolve_cupid(bot, game)
 
-    # 1) Kezuvchi dorisi
+    # 1) Kezuvchi zahari
     poisoner = next((p for p in game.players.values() if p.role == Role.POISONER), None)
     for victim_id, die_night in list(game.pending_poison.items()):
         if die_night != game.day_number:
@@ -586,6 +638,8 @@ async def resolve_night(bot: Bot, game: Game) -> None:
         victim = game.players.get(victim_id)
         if not victim or not victim.alive or doctor_saves(victim_id):
             continue
+        if await use_item(bot, game, victim, "poison_shield"):
+            continue  # Kezuvchi hech narsa bilmaydi
         await _kill_player(bot, game, victim)
         game.night_kills[victim.user_id] = poisoner.user_id if poisoner else None
         await _report(bot, game, _death_line(game, G.PREFIX_POISON, victim))
@@ -595,81 +649,89 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     victim = game.players.get(mafia_target) if mafia_target is not None else None
     if victim and not victim.alive:
         victim = None
-    if victim and doctor_saves(victim.user_id):
-        victim = None
-
-    rifle_used = bool(game.mafia_rifle_users)
-    if rifle_used:
-        for uid in list(game.mafia_rifle_users):
-            shooter = game.players.get(uid)
-            if shooter:
-                await _use_item(game, shooter, "rifle")
-
-    if victim and victim.role == Role.WOLF:
-        victim.role = Role.MAFIA
-        await _safe_send(bot, victim.user_id, pt(victim).WOLF_TURNED.format(teammates=_team_names(game, victim)))
-        victim = None
-
-    if victim and await _use_item(game, victim, "mirror"):
-        alive_team = _alive(game, *MAFIA_TEAM_ROLES)
-        await _safe_send(bot, victim.user_id, pt(victim).MIRROR_SAVED)
-        if alive_team:
-            bounced = random.choice(alive_team)
-            await _kill_player(bot, game, bounced)
-            # O'q qaytgan holatda "qotil" — oyna egasi.
-            game.night_kills[bounced.user_id] = victim.user_id
-            await _report(bot, game, _death_line(game, G.PREFIX_MIRROR, bounced))
-        victim = None
-
-    if victim and not rifle_used and not victim.shield_used and await _use_item(game, victim, "shield"):
-        victim.shield_used = True
-        await _safe_send(bot, victim.user_id, pt(victim).SHIELD_SAVED)
-        victim = None
+    voters = [game.players[uid] for uid, t in game.mafia_votes.items() if victim and t == victim.user_id]
+    team = [p for p in _alive(game, *MAFIA_TEAM_ROLES)]
 
     if victim:
-        # Shu nishonga ovoz bergan mafiyalardan tasodifiy biri "qotil" hisoblanadi.
-        voters = [uid for uid, target in game.mafia_votes.items() if target == victim.user_id]
-        attacker = random.choice(voters) if voters else None
-        if not await _bodyguard_intercepts(bot, game, victim, attacker):
-            await _kill_player(bot, game, victim)
-            game.night_kills[victim.user_id] = attacker
-            for uid in voters:
-                add_mvp(game, uid, MVP_MAFIA_KILL_VOTE)
-            await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, victim))
+        survived = False
+        if doctor_saves(victim.user_id):
+            survived = True
+        elif victim.role == Role.WOLF:
+            # Bo'ri to'liq Mafiya a'zosiga aylanadi: keyingi tundan sheriklarini biladi, chat va ovozda qatnashadi.
+            victim.role = Role.MAFIA
+            await _safe_send(
+                bot, victim.user_id, pt(victim).WOLF_TURNED.format(teammates=_team_names(game, victim))
+            )
+            survived = True
+        elif await use_item(bot, game, victim, "mirror"):
+            # O'q nishonga ovoz bergan Don/Mafiyalardan biriga qaytadi va to'g'ridan-to'g'ri o'ldiradi.
+            alive_voters = [p for p in voters if p.alive and p.role in MAFIA_KILL_ROLES]
+            if alive_voters:
+                bounced = random.choice(alive_voters)
+                await _kill_player(bot, game, bounced)
+                game.night_kills[bounced.user_id] = victim.user_id
+                await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, bounced))
+            survived = True
+        elif victim.items.get("shield", 0) > 0 and not victim.shield_used:
+            rifles = [p for p in voters if p.user_id in game.mafia_rifle_users and rifle_available(game, p)]
+            don_rifle = next((p for p in rifles if p.role == Role.DON), None)
+            rifle_owner = don_rifle or (random.choice(rifles) if rifles else None)
+            if rifle_owner is None or not await _use_rifle(bot, game, rifle_owner):
+                if await use_item(bot, game, victim, "shield"):
+                    victim.shield_used = True
+                    survived = True
 
-            if victim.role == Role.SORCERER:
-                drag_pool = _alive(game, *MAFIA_TEAM_ROLES)
-                if drag_pool:
-                    dragged = random.choice(drag_pool)
-                    await _kill_player(bot, game, dragged)
-                    game.night_kills[dragged.user_id] = victim.user_id
-                    add_mvp(game, victim.user_id, MVP_SORCERER_DRAG)
-                    await _report(
-                        bot,
-                        game,
-                        G.SORCERER_DRAGGED.format(name=mention(dragged), role=role_reveal(game, dragged)),
-                    )
+        if not survived:
+            # Shu nishonga ovoz bergan mafiyalardan tasodifiy biri "qotil" hisoblanadi.
+            attacker = random.choice(voters).user_id if voters else None
+            if await _bodyguard_intercepts(bot, game, victim, attacker):
+                survived = True
+            else:
+                await _kill_player(bot, game, victim)
+                game.night_kills[victim.user_id] = attacker
+                for voter in voters:
+                    add_mvp(game, voter.user_id, MVP_MAFIA_KILL_VOTE)
+                await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, victim))
+
+                if victim.role == Role.SORCERER:
+                    drag_pool = _alive(game, *MAFIA_TEAM_ROLES)
+                    if drag_pool:
+                        dragged = random.choice(drag_pool)
+                        await _kill_player(bot, game, dragged)
+                        game.night_kills[dragged.user_id] = victim.user_id
+                        add_mvp(game, victim.user_id, MVP_SORCERER_DRAG)
+                        await _report(
+                            bot,
+                            game,
+                            G.SORCERER_DRAGGED.format(name=mention(dragged), role=role_reveal(game, dragged)),
+                        )
+        if survived:
+            await _notify_survived(bot, game, [p for p in team if p.user_id != victim.user_id])
 
     # 3) Qotil — mustaqil o'ldirish.
     killer_player = next((p for p in game.players.values() if p.role == Role.KILLER), None)
     kvictim = game.players.get(game.killer_target) if game.killer_target is not None else None
     if kvictim and kvictim.alive:
         attacker = killer_player.user_id if killer_player else None
-        if await _use_item(game, kvictim, "killer_shield"):
-            await _safe_send(bot, kvictim.user_id, pt(kvictim).KILLER_SHIELD_SAVED)
-        elif not await _bodyguard_intercepts(bot, game, kvictim, attacker):
+        if await use_item(bot, game, kvictim, "killer_shield") or await _bodyguard_intercepts(
+            bot, game, kvictim, attacker
+        ):
+            await _notify_survived(bot, game, [killer_player])
+        else:
             await _kill_player(bot, game, kvictim)
             game.night_kills[kvictim.user_id] = attacker
             await _report(bot, game, _death_line(game, G.PREFIX_KILLER, kvictim))
 
     # 4) Yollanma qotil — mafiya tarafida o'ldiradi, o'z buyurtma bonusi bilan.
-    hitman_player = next((p for p in _alive(game, Role.HITMAN)), None)
+    hitman_player = next((p for p in game.players.values() if p.role == Role.HITMAN), None)
     hvictim = game.players.get(game.hitman_target) if game.hitman_target is not None else None
     if hvictim and hvictim.alive:
         attacker = hitman_player.user_id if hitman_player else None
-        if await _use_item(game, hvictim, "killer_shield"):
-            await _safe_send(bot, hvictim.user_id, pt(hvictim).KILLER_SHIELD_SAVED)
-        elif not await _bodyguard_intercepts(bot, game, hvictim, attacker):
+        if await use_item(bot, game, hvictim, "killer_shield") or await _bodyguard_intercepts(
+            bot, game, hvictim, attacker
+        ):
+            await _notify_survived(bot, game, [hitman_player])
+        else:
             await _kill_player(bot, game, hvictim)
             game.night_kills[hvictim.user_id] = attacker
             await _report(bot, game, _death_line(game, G.PREFIX_HITMAN, hvictim))
@@ -682,22 +744,27 @@ async def resolve_night(bot: Bot, game: Game) -> None:
                     pt(hitman_player).HITMAN_CONTRACT_DONE.format(amount=HITMAN_CONTRACT_BONUS_DOLLARS),
                 )
 
-    # 5) Daydi — tashrif buyurgan odami o'ldirilgan bo'lsa, qotilning ismini bilib oladi,
+    # 5) Geroy zarbasi (o'lim sababi guruhga aytilmaydi).
+    await _resolve_hero_shots(bot, game)
+
+    # 6) Daydi — tashrif buyurgan odami o'ldirilgan bo'lsa, qotilning ismini bilib oladi,
     # agar qotilda yoqilgan Maska bo'lmasa (qurbondagi Maska hech narsa qilmaydi).
     if game.wanderer_target in game.night_kills:
         wanderer_player = next((p for p in _alive(game, Role.WANDERER)), None)
         visited = game.players.get(game.wanderer_target)
         killer_id = game.night_kills[game.wanderer_target]
         culprit = game.players.get(killer_id) if killer_id is not None else None
-        if wanderer_player and visited and culprit and not await _use_item(game, culprit, "mask"):
-            add_mvp(game, wanderer_player.user_id, MVP_WANDERER_SAW_KILLER)
-            await _safe_send(
-                bot,
-                wanderer_player.user_id,
-                pt(wanderer_player).WANDERER_SAW_KILLER.format(
-                    victim=esc(visited.full_name), killer=esc(culprit.full_name)
-                ),
-            )
+        if wanderer_player and visited and culprit:
+            P = pt(wanderer_player)
+            if await use_item(bot, game, culprit, "mask"):
+                await _safe_send(bot, wanderer_player.user_id, P.WANDERER_SAW_NOTHING.format(victim=esc(visited.full_name)))
+            else:
+                add_mvp(game, wanderer_player.user_id, MVP_WANDERER_SAW_KILLER)
+                await _safe_send(
+                    bot,
+                    wanderer_player.user_id,
+                    P.WANDERER_SAW_KILLER.format(victim=esc(visited.full_name), killer=esc(culprit.full_name)),
+                )
 
     await _miner_dig(bot, game)
     await _pay_guesses(bot, game)
@@ -716,6 +783,47 @@ async def resolve_night(bot: Bot, game: Game) -> None:
     elif not game.night_kills:
         await _send_group(bot, game, G.NIGHT_QUIET)
     game.night_results.clear()
+
+
+def hero_can_shoot(game: Game, player: Player) -> bool:
+    return (
+        player.alive
+        and player.hero_level > 0
+        and player.role in HERO_ELIGIBLE_ROLES
+        and player.user_id not in game.hero_shot_used
+    )
+
+
+async def _resolve_hero_shots(bot: Bot, game: Game) -> None:
+    G = gt(game)
+    for shooter_id, target_id in list(game.hero_shots.items()):
+        shooter = game.players.get(shooter_id)
+        target = game.players.get(target_id)
+        if not shooter or shooter_id in game.hero_shot_used or not target:
+            continue
+        if not target.alive:
+            # Nishon shu tunda boshqa sababdan o'lgan — zarba hisobga olinmaydi, keyin yana ishlatish mumkin.
+            await _safe_send(bot, shooter.user_id, pt(shooter).HERO_SHOT_KEPT)
+            continue
+        game.hero_shot_used.add(shooter_id)
+        log(game, G.H_HERO.format(actor=_n(shooter), target=_n(target)))
+
+        if shooter.hero_level < HERO_BYPASS_LEVEL:
+            if await use_item(bot, game, target, "mirror"):
+                # Zarba otgan Geroyning o'ziga qaytadi va to'g'ridan-to'g'ri o'ldiradi.
+                await _notify_survived(bot, game, [shooter])
+                if shooter.alive:
+                    await _kill_player(bot, game, shooter)
+                    game.night_kills[shooter.user_id] = target.user_id
+                    await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, shooter))
+                continue
+            if await use_item(bot, game, target, "hero_immunity"):
+                await _notify_survived(bot, game, [shooter])
+                continue
+
+        await _kill_player(bot, game, target)
+        game.night_kills[target.user_id] = shooter.user_id
+        await _report(bot, game, _death_line(game, G.PREFIX_MAFIA, target))
 
 
 def _log_night_choices(game: Game) -> None:
@@ -791,68 +899,6 @@ async def _pay_guesses(bot: Bot, game: Game) -> None:
 
 
 # ---------- Tong ----------
-
-
-async def dawn_phase(bot: Bot, game: Game) -> None:
-    """Tong har tsiklda bir xil xabar va davomiylik bilan o'tadi — shu orqali kimda
-    Geroy borligi (va demak uning roli) oshkor bo'lmaydi. Guruhda Geroy o'chiq bo'lsa, tong umuman bo'lmaydi."""
-    if not game.settings.hero_active:
-        return
-    game.state = GameState.DAWN
-    G = gt(game)
-    log(game, G.HISTORY_DAWN.format(n=game.day_number))
-    dawn_seconds = game.settings.seconds("dawn")
-    game.dawn_shots.clear()
-    game.dawn_acted.clear()
-    game.dawn_event = asyncio.Event()
-
-    eligible = [
-        p
-        for p in _alive(game, *HERO_ELIGIBLE_ROLES)
-        if p.hero_level > 0 and p.user_id not in game.hero_shot_used
-    ]
-    game.dawn_needed = len(eligible)
-
-    await bot.send_message(game.chat_id, G.DAWN_ANNOUNCEMENT.format(seconds=_secs(dawn_seconds)))
-
-    dawn_prompt_tasks = [
-        _safe_send_replace(
-            bot,
-            game,
-            hero.user_id,
-            pt(hero).HERO_PROMPT,
-            reply_markup=build_target_keyboard(game, exclude_ids={hero.user_id}, prefix="hero_shot"),
-        )
-        for hero in eligible
-    ]
-    if dawn_prompt_tasks:
-        await asyncio.gather(*dawn_prompt_tasks)
-
-    # Hamma Geroy tanlagan bo'lsa ham to'liq vaqt kutiladi — aks holda tong davomiyligi sir ochadi.
-    await asyncio.sleep(dawn_seconds)
-
-    for shooter_id, target_id in list(game.dawn_shots.items()):
-        shooter = game.players.get(shooter_id)
-        target = game.players.get(target_id)
-        if not shooter or not shooter.alive or not target or not target.alive:
-            continue
-        if shooter_id in game.hero_shot_used:
-            continue
-        # Geroy zarbasi bir o'yinda faqat bir marta (himoya to'xtatgan bo'lsa ham) ishlatiladi.
-        game.hero_shot_used.add(shooter_id)
-        log(game, G.H_HERO.format(actor=_n(shooter), target=_n(target)))
-
-        if shooter.hero_level < HERO_BYPASS_LEVEL:
-            if await _use_item(game, target, "mirror"):
-                await _safe_send(bot, shooter.user_id, pt(shooter).HERO_MIRROR_SHOOTER)
-                await _safe_send(bot, target.user_id, pt(target).HERO_MIRROR_TARGET)
-                continue
-            if await _use_item(game, target, "hero_immunity"):
-                await _safe_send(bot, target.user_id, pt(target).HERO_IMMUNITY_SAVED)
-                continue
-
-        await _kill_player(bot, game, target)
-        await _report(bot, game, _death_line(game, G.PREFIX_HERO, target))
 
 
 # ---------- Kun ----------
@@ -1043,7 +1089,7 @@ async def _day_phase_result(bot: Bot, game: Game) -> None:
             if await _judge_cancels(bot, game, eliminated):
                 return
 
-            if await _use_item(game, eliminated, "vote_shield"):
+            if await use_item(bot, game, eliminated, "vote_shield"):
                 await bot.send_message(
                     game.chat_id,
                     gt(game).VOTE_SHIELD_SAVED.format(name=mention(eliminated)),
@@ -1092,7 +1138,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
     lines.append(G.WINNERS_HEADER)
     for p in winners:
         status = "" if p.alive else G.DEAD_MARK
-        lines.append(f"{idx}. {esc(p.full_name)} — {G.ROLE_NAMES[p.role]}{status}")
+        lines.append(f"{idx}. {esc(p.full_name)}{hero_badge(p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
         idx += 1
 
     if losers:
@@ -1100,7 +1146,7 @@ async def finish_game(bot: Bot, game: Game, winner: str) -> None:
         lines.append(G.OTHERS_HEADER)
         for p in losers:
             status = "" if p.alive else G.DEAD_MARK
-            lines.append(f"{idx}. {esc(p.full_name)} — {G.ROLE_NAMES[p.role]}{status}")
+            lines.append(f"{idx}. {esc(p.full_name)}{hero_badge(p.hero_badge)} — {G.ROLE_NAMES[p.role]}{status}")
             idx += 1
 
     elapsed_min = max(1, round((time.time() - game.started_at) / 60)) if game.started_at else 0
@@ -1122,12 +1168,6 @@ async def run_game(bot: Bot, game: Game) -> None:
         while True:
             game.day_number += 1
             await night_phase(bot, game)
-            winner = check_win(game)
-            if winner:
-                await finish_game(bot, game, winner)
-                return
-
-            await dawn_phase(bot, game)
             winner = check_win(game)
             if winner:
                 await finish_game(bot, game, winner)

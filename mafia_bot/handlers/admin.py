@@ -8,7 +8,7 @@ import texts
 from config import ADMIN_IDS
 from game.models import Role
 from economy import ITEMS
-from utils import esc
+from utils import esc, hero_badge
 
 router = Router(name="admin")
 
@@ -25,7 +25,7 @@ async def build_profile_view(
 
     lines = [
         L.PROFILE_TEXT.format(
-            name=esc(full_name), user_id=user_id,
+            name=esc(full_name) + hero_badge(hero_level), user_id=user_id,
             dollars=user_row["dollars"], diamonds=user_row["diamonds"], coins=user_row["coins"],
             daily=points["daily"], weekly=points["weekly"], monthly=points["monthly"], total=points["total"],
             hero=L.PROFILE_HERO_LEVEL.format(level=hero_level) if hero_level else L.PROFILE_HERO_NONE,
@@ -33,7 +33,12 @@ async def build_profile_view(
     ]
     for key, item in ITEMS.items():
         row = inventory_by_key.get(key)
-        lines.append(L.PROFILE_ITEM_LINE.format(emoji=item["emoji"], name=L.ITEM_NAMES[key], count=row["count"] if row else 0))
+        count = row["count"] if row else 0
+        if key == "rifle":
+            lines.append(L.INVENTORY_RIFLE_LINE.format(count=count))
+            continue
+        state = (L.PROFILE_ITEM_ON if row["enabled"] else L.PROFILE_ITEM_OFF) + " " if row and count else ""
+        lines.append(state + L.PROFILE_ITEM_LINE.format(emoji=item["emoji"], name=L.ITEM_NAMES[key], count=count))
 
     lines.append("")
     lines.append(L.PROFILE_GAMES.format(games=user_row["games"], wins=user_row["wins"]))
@@ -55,13 +60,13 @@ async def build_profile_view(
     buttons = []
     for row in inventory_rows:
         item = ITEMS.get(row["item_key"])
-        if not item:
+        if not item or row["item_key"] == "rifle":  # Miltiq tunda qo'lda ishlatiladi
             continue
         state = L.PROFILE_ITEM_ON if row["enabled"] else L.PROFILE_ITEM_OFF
         buttons.append(
             [
                 InlineKeyboardButton(
-                    text=f"{item['emoji']} {L.ITEM_NAMES[row['item_key']]} · {state}",
+                    text=f"{state} {item['emoji']} {L.ITEM_NAMES[row['item_key']]}",
                     callback_data=f"toggleitem_profile:{row['item_key']}",
                 )
             ]
@@ -84,7 +89,7 @@ async def on_toggle_item_profile(callback: CallbackQuery, UL=texts) -> None:
     key = callback.data.split(":", 1)[1]
     rows = await db.get_inventory(callback.from_user.id)
     row = next((r for r in rows if r["item_key"] == key), None)
-    if not row:
+    if not row or key == "rifle":
         await callback.answer(UL.ITEM_NOT_OWNED, show_alert=True)
         return
 
