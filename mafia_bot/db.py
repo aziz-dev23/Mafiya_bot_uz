@@ -299,6 +299,30 @@ async def _migrate_purchases_groups() -> None:
     )
 
 
+async def _migrate_admin_log() -> None:
+    """Kirim-chiqim hisoboti (/hisobot): adminlar harakatlari jurnali, bozorda kim sotib olgani,
+    karta buyurtmasini kim tasdiqlagani."""
+    await _conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS admin_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            target_id INTEGER,
+            currency TEXT,
+            amount INTEGER NOT NULL DEFAULT 0,
+            note TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_admin_log_time ON admin_log (created_at);
+        ALTER TABLE market_listings ADD COLUMN buyer_id INTEGER;
+        ALTER TABLE market_listings ADD COLUMN closed_at INTEGER;
+        ALTER TABLE diamond_orders ADD COLUMN reviewed_by INTEGER;
+        ALTER TABLE diamond_orders ADD COLUMN reviewed_at INTEGER;
+        """
+    )
+
+
 # Tartib muhim: yangi migratsiyalar faqat ro'yxat oxiriga qo'shiladi.
 _MIGRATIONS = (
     ("2026_09_killer_shield_x10", _migrate_killer_shield_x10),
@@ -306,6 +330,7 @@ _MIGRATIONS = (
     ("2026_10_cosmetics_season", _migrate_cosmetics_season),
     ("2026_10_bonus_vip_logs", _migrate_bonus_vip_logs),
     ("2026_10_purchases_groups", _migrate_purchases_groups),
+    ("2026_10_admin_log", _migrate_admin_log),
 )
 
 
@@ -516,8 +541,11 @@ async def get_order(order_id: int) -> aiosqlite.Row | None:
     return row
 
 
-async def set_order_status(order_id: int, status: str) -> None:
-    await _conn.execute("UPDATE diamond_orders SET status = ? WHERE order_id = ?", (status, order_id))
+async def set_order_status(order_id: int, status: str, reviewed_by: int | None = None) -> None:
+    await _conn.execute(
+        "UPDATE diamond_orders SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE order_id = ?",
+        (status, reviewed_by, int(time.time()), order_id),
+    )
     await _conn.commit()
 
 
@@ -558,11 +586,11 @@ async def seller_listings(seller_id: int) -> list[aiosqlite.Row]:
     return rows
 
 
-async def transition_listing(listing_id: int, to_status: str) -> bool:
+async def transition_listing(listing_id: int, to_status: str, buyer_id: int | None = None) -> bool:
     """Atomically move a listing out of 'active' so two buyers can't both claim it."""
     cur = await _conn.execute(
-        "UPDATE market_listings SET status = ? WHERE listing_id = ? AND status = 'active'",
-        (to_status, listing_id),
+        "UPDATE market_listings SET status = ?, buyer_id = ?, closed_at = ? WHERE listing_id = ? AND status = 'active'",
+        (to_status, buyer_id, int(time.time()), listing_id),
     )
     await _conn.commit()
     return cur.rowcount > 0
@@ -1387,3 +1415,123 @@ async def expired_tournaments(older_than: int) -> list[aiosqlite.Row]:
     rows = await cur.fetchall()
     await cur.close()
     return rows
+
+
+# ---------- 📒 Kirim-chiqim hisoboti (/hisobot, faqat OWNER_IDS) ----------
+
+
+async def log_admin_action(
+    admin_id: int, action: str, target_id: int | None = None, currency: str | None = None,
+    amount: int = 0, note: str | None = None,
+) -> None:
+    await _conn.execute(
+        "INSERT INTO admin_log (admin_id, action, target_id, currency, amount, note, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (admin_id, action, target_id, currency, amount, note, int(time.time())),
+    )
+    await _conn.commit()
+
+
+async def _rows(sql: str, params: tuple) -> list[aiosqlite.Row]:
+    cur = await _conn.execute(sql, params)
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
+async def report_stars(since: int) -> list[aiosqlite.Row]:
+    """Stars to'lovlari turi va holati bo'yicha: soni, ⭐ va 💎 yig'indisi."""
+    return await _rows(
+        "SELECT kind, status, COUNT(*) AS n, COALESCE(SUM(stars), 0) AS stars, COALESCE(SUM(diamonds), 0) AS diamonds "
+        "FROM star_payments WHERE created_at >= ? GROUP BY kind, status",
+        (since,),
+    )
+
+
+async def report_card_orders(since: int) -> list[aiosqlite.Row]:
+    return await _rows(
+        "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS diamonds, COALESCE(SUM(price_som), 0) AS som "
+        "FROM diamond_orders WHERE created_at >= ? GROUP BY status",
+        (since,),
+    )
+
+
+async def report_transfers(since: int) -> list[aiosqlite.Row]:
+    return await _rows(
+        "SELECT currency, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS amount FROM transfers "
+        "WHERE created_at >= ? GROUP BY currency",
+        (since,),
+    )
+
+
+async def report_admin_grants(since: int) -> list[aiosqlite.Row]:
+    """Har bir admin qancha berdi (valyuta bo'yicha)."""
+    return await _rows(
+        "SELECT admin_log.admin_id AS admin_id, users.full_name AS full_name, action, currency, "
+        "COUNT(*) AS n, COALESCE(SUM(amount), 0) AS amount "
+        "FROM admin_log LEFT JOIN users ON users.user_id = admin_log.admin_id "
+        "WHERE created_at >= ? GROUP BY admin_log.admin_id, action, currency ORDER BY admin_log.admin_id",
+        (since,),
+    )
+
+
+async def report_market(since: int) -> list[aiosqlite.Row]:
+    """Sotilgan bozor e'lonlari (valyuta juftligi bo'yicha). Eski savdolarda vaqt yo'q — yaratilgan vaqt olinadi."""
+    return await _rows(
+        "SELECT sell_currency, price_currency, COUNT(*) AS n, COALESCE(SUM(sell_amount), 0) AS sold, "
+        "COALESCE(SUM(price_amount), 0) AS paid FROM market_listings "
+        "WHERE status = 'sold' AND COALESCE(closed_at, created_at) >= ? GROUP BY sell_currency, price_currency",
+        (since,),
+    )
+
+
+async def report_rewards(since: int) -> dict:
+    """Bot o'zi bergan olmoslar: taklif mukofotlari, turnir sovrinlari (adminlardan), guruh egasi ulushi."""
+    referral = await _rows(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(payment_grants.amount), 0) AS amount FROM payment_grants "
+        "JOIN star_payments ON star_payments.charge_id = payment_grants.charge_id "
+        "WHERE payment_grants.kind = 'diamond' AND payment_grants.user_id != COALESCE(star_payments.payer_id, star_payments.user_id) "
+        "AND payment_grants.user_id != star_payments.user_id AND star_payments.created_at >= ?",
+        (since,),
+    )
+    share = await _rows(
+        "SELECT COALESCE(SUM(payment_grants.amount), 0) AS millis FROM payment_grants "
+        "JOIN star_payments ON star_payments.charge_id = payment_grants.charge_id "
+        "WHERE payment_grants.kind = 'share' AND star_payments.created_at >= ?",
+        (since,),
+    )
+    tournaments = await _rows(
+        "SELECT status, COUNT(*) AS n, COALESCE(SUM(prize), 0) AS prize FROM tournaments "
+        "WHERE created_at >= ? GROUP BY status",
+        (since,),
+    )
+    return {"referral": referral[0], "share_millis": share[0]["millis"], "tournaments": tournaments}
+
+
+async def report_recent(since: int, limit: int = 15) -> list[dict]:
+    """Oxirgi harakatlar (eng yangisi birinchi): Stars to'lovlari, karta, o'tkazmalar, admin berganlari, bozor."""
+    rows = await _rows(
+        """
+        SELECT * FROM (
+            SELECT created_at AS t, 'stars' AS type, COALESCE(payer_id, user_id) AS a, user_id AS b,
+                   kind AS what, diamonds AS amount, stars AS extra, status AS status FROM star_payments
+            UNION ALL
+            SELECT COALESCE(reviewed_at, created_at), 'card', reviewed_by, user_id, 'diamond', amount, price_som, status
+                FROM diamond_orders WHERE status != 'pending'
+            UNION ALL
+            SELECT created_at, 'transfer', sender_id, recipient_id, currency, amount, 0, '' FROM transfers
+            UNION ALL
+            SELECT created_at, 'admin', admin_id, target_id, COALESCE(currency, action), amount, 0, action FROM admin_log
+            UNION ALL
+            SELECT COALESCE(closed_at, created_at), 'market', seller_id, buyer_id, sell_currency, sell_amount,
+                   price_amount, price_currency FROM market_listings WHERE status = 'sold'
+        ) WHERE t >= ? ORDER BY t DESC LIMIT ?
+        """,
+        (since, limit),
+    )
+    ids = {r[k] for r in rows for k in ("a", "b") if r[k]}
+    names = {}
+    for uid in ids:
+        user = await get_user(uid)
+        names[uid] = user["full_name"] if user else str(uid)
+    return [dict(r) | {"a_name": names.get(r["a"]), "b_name": names.get(r["b"])} for r in rows]

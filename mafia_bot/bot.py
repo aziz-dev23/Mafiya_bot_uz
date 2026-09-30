@@ -28,6 +28,7 @@ from handlers import (
     menu,
     night,
     ranking,
+    report,
     season_pass,
     shop,
     stars,
@@ -75,6 +76,7 @@ async def main() -> None:
     dp.include_router(gifts.router)
     dp.include_router(group_premium.router)
     dp.include_router(admin.router)
+    dp.include_router(report.router)
     dp.include_router(lobby.router)
     dp.include_router(night.router)
     dp.include_router(day.router)

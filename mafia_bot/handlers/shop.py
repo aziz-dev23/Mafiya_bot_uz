@@ -3,6 +3,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+import audit
 import db
 import purchases
 import texts
@@ -240,7 +241,11 @@ async def on_approve(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     if not order:
         return
 
-    await db.set_order_status(order["order_id"], "approved")
+    await db.set_order_status(order["order_id"], "approved", callback.from_user.id)
+    await audit.record(
+        bot, callback.from_user, "card_approve", order["user_id"], "diamond", order["amount"],
+        note=f"#{order['order_id']} · {format_som(order['price_som'])} so'm",
+    )
     await db.add_balance(order["user_id"], diamonds=order["amount"])
     await callback.answer(UL.ORDER_APPROVED_ALERT)
     try:
@@ -261,7 +266,10 @@ async def on_reject(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
     if not order:
         return
 
-    await db.set_order_status(order["order_id"], "rejected")
+    await db.set_order_status(order["order_id"], "rejected", callback.from_user.id)
+    await audit.record(
+        bot, callback.from_user, "card_reject", order["user_id"], "diamond", order["amount"], note=f"#{order['order_id']}"
+    )
     await callback.answer(UL.ORDER_REJECTED_ALERT)
     try:
         await callback.message.edit_text(callback.message.text + "\n\n" + UL.ORDER_REJECTED_MARK)

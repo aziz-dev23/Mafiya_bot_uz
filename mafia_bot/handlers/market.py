@@ -150,7 +150,7 @@ async def on_market_buy(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
         )
         return
 
-    claimed = await db.transition_listing(listing_id, "sold")
+    claimed = await db.transition_listing(listing_id, "sold", callback.from_user.id)
     if not claimed:
         # Boshqa xaridor oldinroq ulgurdi — to'langan summa qaytariladi.
         await db.add_balance(callback.from_user.id, **{price_col: listing["price_amount"]})

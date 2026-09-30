@@ -1,11 +1,12 @@
 import time
 from datetime import datetime, timedelta, timezone
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+import audit
 import cosmetics
 import db
 import texts
@@ -176,7 +177,7 @@ def _parse_target_and_amount(message: Message, L=texts) -> tuple[int | None, int
 
 
 @router.message(Command("addcash"))
-async def cmd_addcash(message: Message, L=texts) -> None:
+async def cmd_addcash(message: Message, bot: Bot, L=texts) -> None:
     if message.from_user.id not in ADMIN_IDS:
         return
     user_id, amount, error = _parse_target_and_amount(message, L)
@@ -186,10 +187,11 @@ async def cmd_addcash(message: Message, L=texts) -> None:
     await db.ensure_user_exists(user_id)
     await db.add_balance(user_id, dollars=amount)
     await message.answer(L.ADMIN_BALANCE_ADDED.format(amount=amount, emoji="💵", user_id=user_id))
+    await audit.record(bot, message.from_user, "addcash", user_id, "dollar", amount)
 
 
 @router.message(Command("addgem"))
-async def cmd_addgem(message: Message, L=texts) -> None:
+async def cmd_addgem(message: Message, bot: Bot, L=texts) -> None:
     if message.from_user.id not in ADMIN_IDS:
         return
     user_id, amount, error = _parse_target_and_amount(message, L)
@@ -199,10 +201,11 @@ async def cmd_addgem(message: Message, L=texts) -> None:
     await db.ensure_user_exists(user_id)
     await db.add_balance(user_id, diamonds=amount)
     await message.answer(L.ADMIN_BALANCE_ADDED.format(amount=amount, emoji="💎", user_id=user_id))
+    await audit.record(bot, message.from_user, "addgem", user_id, "diamond", amount)
 
 
 @router.message(Command("addcoin"))
-async def cmd_addcoin(message: Message, L=texts) -> None:
+async def cmd_addcoin(message: Message, bot: Bot, L=texts) -> None:
     if message.from_user.id not in ADMIN_IDS:
         return
     user_id, amount, error = _parse_target_and_amount(message, L)
@@ -212,3 +215,4 @@ async def cmd_addcoin(message: Message, L=texts) -> None:
     await db.ensure_user_exists(user_id)
     await db.add_balance(user_id, coins=amount)
     await message.answer(L.ADMIN_BALANCE_ADDED.format(amount=amount, emoji="🪙", user_id=user_id))
+    await audit.record(bot, message.from_user, "addcoin", user_id, "coin", amount)

@@ -46,6 +46,9 @@ DB_PATH = os.getenv("DB_PATH", "mafia.db")
 # Reyting davrlari (kun/hafta/oy) shu vaqt mintaqasi bo'yicha hisoblanadi (Toshkent = UTC+5)
 TIMEZONE_OFFSET_HOURS = int(os.getenv("TIMEZONE_OFFSET_HOURS", "5"))
 ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").replace(",", " ").split() if x.strip()}
+# Bot egasi(lari): /hisobot (kirim-chiqim) faqat shularga ko'rinadi; boshqa adminlar balans bergan,
+# to'lovni qaytargan yoki karta buyurtmasini ko'rib chiqqanda egaga darhol xabar boradi.
+OWNER_IDS = {int(x) for x in os.getenv("OWNER_IDS", "").replace(",", " ").split() if x.strip()}
 # Faqat shu Telegram user_id'lar bozorda (/sell) sotuvchi sifatida e'lon joylay oladi
 SELLER_IDS = {int(x) for x in os.getenv("SELLER_IDS", "").replace(",", " ").split() if x.strip()}
 

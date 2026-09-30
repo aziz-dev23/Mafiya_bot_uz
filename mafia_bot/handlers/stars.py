@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramFor
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
+import audit
 import db
 import owner_share
 import purchases
@@ -363,7 +364,14 @@ async def cmd_refund(message: Message, bot: Bot, command: CommandObject, L=texts
         await message.answer(L.REFUND_USAGE)
         return
     force = len(args) > 1 and args[1].lower() == "force"
-    await message.answer(await refund_payment(bot, args[0], force, L))
+    result = await refund_payment(bot, args[0], force, L)
+    await message.answer(result)
+    payment = await db.get_star_payment(args[0])
+    if payment and payment["status"] == "refunded":
+        await audit.record(
+            bot, message.from_user, "refund", payment["payer_id"] or payment["user_id"], "diamond",
+            payment["diamonds"], note=f"{payment['stars']}⭐ · {args[0]}",
+        )
 
 
 @router.message(Command("paysupport"))

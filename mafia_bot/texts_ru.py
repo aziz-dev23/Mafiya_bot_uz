@@ -1121,3 +1121,62 @@ SETTINGS_SHARE_TITLE = "🤝 <b>Доля владельца группы</b>\n{p
 SETTINGS_SHARE_CREATOR_ONLY = "Получателя доли может менять только создатель группы."
 SETTINGS_SHARE_SET = "✅ Получатель доли: {name}"
 SETTINGS_SHARE_CREATOR = "создатель группы"
+
+# ---------- 📒 /hisobot — доходы и расходы (только владелец бота) ----------
+REPORT_TITLE = "📒 <b>Отчёт о доходах и расходах</b> — {period}"
+REPORT_PERIODS = {"today": "Сегодня", "week": "7 дней", "month": "30 дней", "all": "Всё время"}
+REPORT_KIND_NAMES = {
+    "diamonds": "💎 Пакеты алмазов",
+    "starter": "🌱 Стартовый набор",
+    "gift": "🎁 Подарок (Stars)",
+    "vip": "👑 VIP",
+    "group_premium": "🏰 Премиум группы",
+}
+REPORT_NONE = "— нет"
+REPORT_STARS_HEADER = "💰 <b>Продажи — Telegram Stars</b>"
+REPORT_STARS_LINE = "{name}: {n} шт · {stars}⭐ · выдано {diamonds}💎"
+REPORT_REFUNDED_LINE = "↩️ Возвращено: {n} шт · {stars}⭐ · {diamonds}💎"
+REPORT_STARS_TOTAL = "Итого поступило: <b>{stars}⭐</b>"
+REPORT_CARD_HEADER = "💳 <b>Продажи — по карте</b>"
+REPORT_CARD_APPROVED = "✅ Подтверждено: {n} шт · {som} сум · {diamonds}💎"
+REPORT_CARD_OTHER = "❌ Отклонено: {rejected} · ⏳ Ожидает: {pending}"
+REPORT_TRANSFERS_HEADER = "🎁 <b>Переводы между игроками</b> (/send, /sendgem)"
+REPORT_TRANSFER_LINE = "{n} переводов · {amount}"
+REPORT_ADMINS_HEADER = "🛠 <b>Выдано админами</b>"
+REPORT_ADMIN_LINE = "{name} (<code>{admin_id}</code>): {parts}"
+ADMIN_ACTION_SHORT = {
+    "addcash": "+{amount} ({n} раз)",
+    "addgem": "+{amount} ({n} раз)",
+    "addcoin": "+{amount} ({n} раз)",
+    "card_approve": "карта ✅ {amount} ({n} шт)",
+    "card_reject": "карта ❌ {n} шт",
+    "refund": "↩️ возврат {amount} ({n} шт)",
+}
+ADMIN_ACTION_NAMES = {
+    "addcash": "выдал +{amount}{emoji}",
+    "addgem": "выдал +{amount}{emoji}",
+    "addcoin": "выдал +{amount}{emoji}",
+    "card_approve": "подтвердил оплату картой: {amount}{emoji} {note}",
+    "card_reject": "отклонил оплату картой: {amount}{emoji} {note}",
+    "refund": "вернул платёж Stars: {amount}{emoji} {note}",
+}
+REPORT_MARKET_HEADER = "🛍 <b>Сделки на рынке</b>"
+REPORT_MARKET_LINE = "{n} шт: продано {sold} ← оплачено {paid}"
+REPORT_REWARDS_HEADER = "🤖 <b>Награды от бота</b>"
+REPORT_REFERRAL_LINE = "🔗 За приглашения: {n} шт · {diamonds}💎"
+REPORT_SHARE_LINE = "🤝 Доля владельцев групп: {diamonds}💎"
+REPORT_TOURNAMENT_LINE = "🏆 Завершённые турниры: {n} шт · приз {diamonds}💎 (из счёта админа) · активных: {active}"
+REPORT_RECENT_HEADER = "🕘 <b>Последние действия</b>"
+REPORT_REFUND_MARK = " ↩️ возвращён"
+REPORT_RECENT = {
+    "stars": "{t} · ⭐ {a}{target}: {name} — {diamonds}💎, {stars}⭐{mark}",
+    "card": "{t} · 💳 {b}: {diamonds}💎, {som} сум {mark} ({a})",
+    "transfer": "{t} · 🎁 {a} → {b}: {amount}",
+    "admin": "{t} · 🛠 {a} → {b}: {action}",
+    "market": "{t} · 🛍 {a} → {b}: {sold} ({paid})",
+}
+REPORT_FOOTER = (
+    "ℹ️ Выдачи админов и покупатели на рынке записываются с этого обновления; "
+    "Stars, карта и переводы — с самого начала."
+)
+OWNER_ADMIN_ACTION = "🛠 Админ <b>{admin}</b> (<code>{admin_id}</code>) → <b>{target}</b> (<code>{target_id}</code>): {action}"

@@ -295,8 +295,8 @@ async def _edit_lobby_later(bot: Bot, game: Game) -> None:
             message_id=game.lobby_message_id,
             reply_markup=build_lobby_keyboard(game),
         )
-    except TelegramBadRequest:
-        pass
+    except (TelegramBadRequest, TelegramForbiddenError):
+        pass  # xabar o'chirilgan yoki bot guruhdan chiqarilgan
 
 
 @router.callback_query(F.data == "lobby:start_now")

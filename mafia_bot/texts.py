@@ -1231,3 +1231,62 @@ SETTINGS_SHARE_TITLE = "🤝 <b>Guruh egasi ulushi</b>\nO'yinchilar Stars xaridi
 SETTINGS_SHARE_CREATOR_ONLY = "Ulush oluvchini faqat guruh yaratuvchisi o'zgartira oladi."
 SETTINGS_SHARE_SET = "✅ Ulush oluvchi: {name}"
 SETTINGS_SHARE_CREATOR = "guruh yaratuvchisi"
+
+# ---------- 📒 /hisobot — kirim-chiqim (faqat bot egasi) ----------
+REPORT_TITLE = "📒 <b>Kirim-chiqim hisoboti</b> — {period}"
+REPORT_PERIODS = {"today": "Bugun", "week": "7 kun", "month": "30 kun", "all": "Hammasi"}
+REPORT_KIND_NAMES = {
+    "diamonds": "💎 Olmos paketlari",
+    "starter": "🌱 Boshlang'ich to'plam",
+    "gift": "🎁 Sovg'a (Stars)",
+    "vip": "👑 VIP",
+    "group_premium": "🏰 Guruh premiumi",
+}
+REPORT_NONE = "— yo'q"
+REPORT_STARS_HEADER = "💰 <b>Sotuvlar — Telegram Stars</b>"
+REPORT_STARS_LINE = "{name}: {n} ta · {stars}⭐ · {diamonds}💎 berildi"
+REPORT_REFUNDED_LINE = "↩️ Qaytarilgan: {n} ta · {stars}⭐ · {diamonds}💎"
+REPORT_STARS_TOTAL = "Jami tushum: <b>{stars}⭐</b>"
+REPORT_CARD_HEADER = "💳 <b>Sotuvlar — karta orqali</b>"
+REPORT_CARD_APPROVED = "✅ Tasdiqlangan: {n} ta · {som} so'm · {diamonds}💎"
+REPORT_CARD_OTHER = "❌ Rad etilgan: {rejected} · ⏳ Kutilmoqda: {pending}"
+REPORT_TRANSFERS_HEADER = "🎁 <b>O'yinchilar bir-biriga yuborgani</b> (/send, /sendgem)"
+REPORT_TRANSFER_LINE = "{n} ta o'tkazma · {amount}"
+REPORT_ADMINS_HEADER = "🛠 <b>Adminlar bergani</b>"
+REPORT_ADMIN_LINE = "{name} (<code>{admin_id}</code>): {parts}"
+ADMIN_ACTION_SHORT = {
+    "addcash": "+{amount} ({n} marta)",
+    "addgem": "+{amount} ({n} marta)",
+    "addcoin": "+{amount} ({n} marta)",
+    "card_approve": "karta ✅ {amount} ({n} ta)",
+    "card_reject": "karta ❌ {n} ta",
+    "refund": "↩️ qaytarish {amount} ({n} ta)",
+}
+ADMIN_ACTION_NAMES = {
+    "addcash": "+{amount}{emoji} berdi",
+    "addgem": "+{amount}{emoji} berdi",
+    "addcoin": "+{amount}{emoji} berdi",
+    "card_approve": "karta to'lovini tasdiqladi: {amount}{emoji} {note}",
+    "card_reject": "karta to'lovini rad etdi: {amount}{emoji} {note}",
+    "refund": "Stars to'lovini qaytardi: {amount}{emoji} {note}",
+}
+REPORT_MARKET_HEADER = "🛍 <b>Bozor savdolari</b>"
+REPORT_MARKET_LINE = "{n} ta: {sold} sotildi ← {paid} to'landi"
+REPORT_REWARDS_HEADER = "🤖 <b>Bot bergan mukofotlar</b>"
+REPORT_REFERRAL_LINE = "🔗 Taklif mukofoti: {n} ta · {diamonds}💎"
+REPORT_SHARE_LINE = "🤝 Guruh egalari ulushi: {diamonds}💎"
+REPORT_TOURNAMENT_LINE = "🏆 Tugagan turnirlar: {n} ta · {diamonds}💎 sovrin (admin hisobidan) · faol: {active}"
+REPORT_RECENT_HEADER = "🕘 <b>Oxirgi harakatlar</b>"
+REPORT_REFUND_MARK = " ↩️ qaytarilgan"
+REPORT_RECENT = {
+    "stars": "{t} · ⭐ {a}{target}: {name} — {diamonds}💎, {stars}⭐{mark}",
+    "card": "{t} · 💳 {b}: {diamonds}💎, {som} so'm {mark} ({a})",
+    "transfer": "{t} · 🎁 {a} → {b}: {amount}",
+    "admin": "{t} · 🛠 {a} → {b}: {action}",
+    "market": "{t} · 🛍 {a} → {b}: {sold} ({paid})",
+}
+REPORT_FOOTER = (
+    "ℹ️ Adminlar bergani va bozorda kim sotib olgani shu yangilanishdan boshlab yoziladi; "
+    "Stars, karta va o'tkazmalar — boshidan."
+)
+OWNER_ADMIN_ACTION = "🛠 Admin <b>{admin}</b> (<code>{admin_id}</code>) → <b>{target}</b> (<code>{target_id}</code>): {action}"
