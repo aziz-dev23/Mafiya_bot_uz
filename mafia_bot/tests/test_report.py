@@ -37,6 +37,37 @@ class ReportTest(unittest.IsolatedAsyncioTestCase):
         self.p.stop()
         self.tmp.cleanup()
 
+    async def test_groups_list_owner_only(self):
+        await db.set_group_title(-1, "Birinchi <guruh>")
+        await db.set_group_title(-2, "Ikkinchi")
+        await db.log_game(-1, "town", 6)
+        bot = make_bot()
+        bot.id = 999
+        bot.get_chat = AsyncMock(side_effect=lambda cid: MagicMock(title=None, username="ochiq" if cid == -1 else None))
+        bot.get_chat_member = AsyncMock(side_effect=lambda cid, uid: MagicMock(status="administrator" if cid == -1 else "left"))
+        text = await report.build_groups_text(bot)
+        self.assertIn(texts.GROUPS_HEADER.format(active=1, left=1), text)
+        self.assertIn('✅ <a href="https://t.me/ochiq">Birinchi &lt;guruh&gt;</a>', text)
+        self.assertIn("❌ Ikkinchi", text)
+        self.assertLess(text.index("Birinchi"), text.index("Ikkinchi"))
+
+        from handlers.admin import build_profile_view
+        for uid, expected in ((OWNER, True), (ADMIN, False)):
+            with patch("handlers.admin.OWNER_IDS", {OWNER}):
+                _, kb = await build_profile_view(uid, "x")
+            data = [b.callback_data for row in kb.inline_keyboard for b in row]
+            self.assertEqual("owner:groups" in data, expected)
+
+        callback = MagicMock()
+        callback.from_user.id = ADMIN
+        callback.answer = AsyncMock()
+        with patch.object(report, "OWNER_IDS", {OWNER}):
+            await report.on_owner_groups(callback, bot)
+            self.assertEqual(private_texts(bot, ADMIN), [])
+            callback.from_user.id = OWNER
+            await report.on_owner_groups(callback, bot)
+        self.assertIn("Ikkinchi", private_texts(bot, OWNER)[0])
+
     async def test_admin_action_logged_and_owner_notified(self):
         bot = make_bot()
         with patch.object(audit, "OWNER_IDS", {OWNER}):

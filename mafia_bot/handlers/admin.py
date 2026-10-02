@@ -10,7 +10,7 @@ import audit
 import cosmetics
 import db
 import texts
-from config import ADMIN_IDS, TIMEZONE_OFFSET_HOURS
+from config import ADMIN_IDS, OWNER_IDS, TIMEZONE_OFFSET_HOURS
 from game.models import Role
 from economy import FRAME, ITEMS, TITLE, VIP_HISTORY_GAMES
 from utils import esc
@@ -84,6 +84,8 @@ async def build_profile_view(
                 )
             ]
         )
+    if user_id in OWNER_IDS:
+        buttons.append([InlineKeyboardButton(text=L.PROFILE_GROUPS_BUTTON, callback_data="owner:groups")])
     buttons.append([InlineKeyboardButton(text=L.MAIN_MENU_BUTTON, callback_data="menu:back")])
 
     return _framed("\n".join(lines), active.get(FRAME), L), InlineKeyboardMarkup(inline_keyboard=buttons)

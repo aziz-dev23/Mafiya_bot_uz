@@ -1322,3 +1322,12 @@ REPORT_FOOTER = (
     "Stars, karta va o'tkazmalar — boshidan."
 )
 OWNER_ADMIN_ACTION = "🛠 Admin <b>{admin}</b> (<code>{admin_id}</code>) → <b>{target}</b> (<code>{target_id}</code>): {action}"
+
+# ---------- 🏘 Bot ishlayotgan guruhlar (faqat bot egasi) ----------
+PROFILE_GROUPS_BUTTON = "🏘 Bot ishlayotgan guruhlar"
+GROUPS_HEADER = "🏘 <b>Bot ishlayotgan guruhlar</b>\nFaol: {active} ta · Bot chiqarilgan: {left} ta"
+GROUPS_LINE = "{n}. {status} {title}\n     🎲 {games} ta o'yin · oxirgisi: {last}"
+GROUPS_NEVER = "hali o'ynalmagan"
+GROUPS_EMPTY = "🏘 Bot hali birorta guruhda ishlamagan."
+GROUPS_LEGEND = "✅ bot guruhda · 🎮 hozir o'yin ketyapti · ❌ bot guruhdan chiqarilgan"
+GROUPS_MORE = "… va yana {count} ta guruh."

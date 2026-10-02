@@ -1323,6 +1323,21 @@ async def get_group_title(chat_id: int) -> str | None:
     return row["title"] if row else None
 
 
+async def known_groups() -> list[aiosqlite.Row]:
+    """Bot ishlagan barcha guruhlar: nomi, o'yinlar soni va oxirgi o'yin vaqti (eng yangisi birinchi)."""
+    cur = await _conn.execute(
+        "SELECT c.chat_id AS chat_id, gc.title AS title, COALESCE(g.n, 0) AS games, g.last AS last_game "
+        "FROM (SELECT chat_id FROM group_chats UNION SELECT chat_id FROM group_settings "
+        "UNION SELECT chat_id FROM game_results) c "
+        "LEFT JOIN group_chats gc ON gc.chat_id = c.chat_id "
+        "LEFT JOIN (SELECT chat_id, COUNT(*) AS n, MAX(ended_at) AS last FROM game_results GROUP BY chat_id) g "
+        "ON g.chat_id = c.chat_id ORDER BY COALESCE(g.last, 0) DESC, c.chat_id"
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return rows
+
+
 async def group_week_stats(chat_id: int, since: int, until: int) -> dict:
     """Guruhning [since, until) oralig'idagi statistikasi."""
     cur = await _conn.execute(

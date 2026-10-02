@@ -1212,3 +1212,12 @@ REPORT_FOOTER = (
     "Stars, карта и переводы — с самого начала."
 )
 OWNER_ADMIN_ACTION = "🛠 Админ <b>{admin}</b> (<code>{admin_id}</code>) → <b>{target}</b> (<code>{target_id}</code>): {action}"
+
+# ---------- 🏘 Группы, где работает бот (только владелец) ----------
+PROFILE_GROUPS_BUTTON = "🏘 Группы, где работает бот"
+GROUPS_HEADER = "🏘 <b>Группы, где работает бот</b>\nАктивных: {active} · Бот удалён: {left}"
+GROUPS_LINE = "{n}. {status} {title}\n     🎲 игр: {games} · последняя: {last}"
+GROUPS_NEVER = "ещё не играли"
+GROUPS_EMPTY = "🏘 Бот пока не работал ни в одной группе."
+GROUPS_LEGEND = "✅ бот в группе · 🎮 сейчас идёт игра · ❌ бот удалён из группы"
+GROUPS_MORE = "… и ещё групп: {count}."

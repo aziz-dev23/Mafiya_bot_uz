@@ -2,8 +2,8 @@
 adminlar qancha berdi, bozor savdolari va bot o'zi bergan mukofotlar."""
 from datetime import datetime, timedelta, timezone
 
-from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -11,8 +11,9 @@ import db
 import texts
 from config import OWNER_IDS, TIMEZONE_OFFSET_HOURS
 from economy import CURRENCY_EMOJI
+from game.manager import manager
 from owner_share import MILLI
-from utils import esc
+from utils import esc, split_text
 
 router = Router(name="report")
 TZ = timezone(timedelta(hours=TIMEZONE_OFFSET_HOURS))
@@ -217,4 +218,65 @@ async def on_report_period(callback: CallbackQuery, UL=texts) -> None:
             _trim(await build_report(period, UL)), reply_markup=periods_keyboard(period, UL)
         )
     except TelegramBadRequest:
+        pass
+
+
+# ---------- 🏘 Bot ishlayotgan guruhlar ----------
+
+GROUPS_LIMIT = 60  # har bir guruh Telegramdan alohida so'raladi — ro'yxat shu songacha cheklanadi
+
+
+async def _group_state(bot: Bot, chat_id: int, saved_title: str | None) -> tuple[bool, str]:
+    """(bot hali guruhdami, guruh nomi — ochiq guruh bo'lsa havola bilan)."""
+    try:
+        chat = await bot.get_chat(chat_id)
+        member = await bot.get_chat_member(chat_id, bot.id)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        return False, esc(saved_title or str(chat_id))
+    title = esc(chat.title or saved_title or str(chat_id))
+    if chat.username:
+        title = f'<a href="https://t.me/{chat.username}">{title}</a>'
+    return member.status not in ("left", "kicked"), title
+
+
+async def build_groups_text(bot: Bot, L=texts) -> str:
+    rows = await db.known_groups()
+    if not rows:
+        return L.GROUPS_EMPTY
+    lines, active = [], 0
+    for n, row in enumerate(rows[:GROUPS_LIMIT], 1):
+        present, title = await _group_state(bot, row["chat_id"], row["title"])
+        active += present
+        status = "🎮" if present and manager.get_game(row["chat_id"]) else "✅" if present else "❌"
+        last = _time(row["last_game"]) if row["last_game"] else L.GROUPS_NEVER
+        lines.append(L.GROUPS_LINE.format(n=n, status=status, title=title, games=row["games"], last=last))
+    shown = min(len(rows), GROUPS_LIMIT)
+    parts = [L.GROUPS_HEADER.format(active=active, left=shown - active), *lines]
+    if len(rows) > shown:
+        parts.append(L.GROUPS_MORE.format(count=len(rows) - shown))
+    parts.append(L.GROUPS_LEGEND)
+    return "\n\n".join(parts)
+
+
+async def _send_groups(bot: Bot, user_id: int, L) -> None:
+    for part in split_text(await build_groups_text(bot, L)):
+        await bot.send_message(user_id, part, disable_web_page_preview=True)
+
+
+@router.message(Command("guruhlar", "groups"), F.chat.type == "private")
+async def cmd_groups(message: Message, bot: Bot, UL=texts) -> None:
+    if message.from_user.id not in OWNER_IDS:
+        return
+    await _send_groups(bot, message.from_user.id, UL)
+
+
+@router.callback_query(F.data == "owner:groups")
+async def on_owner_groups(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
+    await callback.answer()
+    if callback.from_user.id not in OWNER_IDS:
+        return
+    try:
+        # Ro'yxat har doim egasining shaxsiy chatiga boradi — /profile guruhda bosilgan bo'lsa ham.
+        await _send_groups(bot, callback.from_user.id, UL)
+    except (TelegramBadRequest, TelegramForbiddenError):
         pass
