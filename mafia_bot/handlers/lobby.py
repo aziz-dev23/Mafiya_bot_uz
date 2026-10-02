@@ -45,6 +45,7 @@ def build_lobby_keyboard(game: Game) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text=L.LOBBY_LEAVE_BUTTON, callback_data="lobby:leave"),
             ],
             [InlineKeyboardButton(text=L.LOBBY_START_BUTTON, callback_data="lobby:start_now")],
+            [InlineKeyboardButton(text=L.LOBBY_RULES_BUTTON, callback_data="guide:rules")],
         ]
     )
 

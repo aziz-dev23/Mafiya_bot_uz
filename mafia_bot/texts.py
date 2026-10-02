@@ -143,6 +143,7 @@ HELP_TEXT = (
     "/send — boshqa foydalanuvchiga Dollar yuborish\n"
     "/sendgem — boshqa foydalanuvchiga Olmos yuborish\n"
     "/geroy — Geroyni sotib olish / darajasini oshirish\n"
+    "/qoidalar — o'yin qoidalari va qisqa qo'llanma\n"
     "/rollar — barcha rollar tavsifi\n"
     "/sozlamalar — guruh sozlamalari (faqat guruh adminlari)\n"
     "/til — tilni tanlash\n\n"
@@ -850,6 +851,35 @@ ANN_LAWYER = "👨‍💼 Advokat o'z himoyasini tayinladi."
 ANN_BODYGUARD = "🛡 Tansoqchi navbatchilikka chiqdi."
 ANN_JOURNALIST = "📰 Jurnalist tekshiruv o'tkazdi."
 
+# ---------- Qo'llanma (/qoidalar) ----------
+RULES_TEXT = (
+    "📖 <b>MAFIYA — QISQA QO'LLANMA</b>\n\n"
+    "<b>O'yinni boshlash:</b>\n"
+    "1. Botga shaxsiy chatda bir marta /start bosing — rolingiz shu yerga keladi.\n"
+    "2. Guruhda /mafia yozing — ro'yxat ochiladi, \"Qo'shilish\" tugmasini bosing.\n"
+    "3. Yetarli odam yig'ilgach, o'yin egasi yoki admin \"Boshlash\"ni bosadi.\n\n"
+    "<b>O'yin tartibi:</b>\n"
+    "🌙 Tun — guruh yopiladi. Rolingiz bo'yicha tanlov tugmalari shaxsiy chatga keladi.\n"
+    "☀️ Kun — kim halok bo'lgani e'lon qilinadi, muhokama va ovoz berish. Ko'p ovoz olgan haydaladi.\n"
+    "🏆 Mafiya soni tinch aholiga teng yoki ko'p bo'lsa — mafiya, barcha mafiya va Qotil yo'q qilinsa — "
+    "tinch aholi g'alaba qiladi.\n\n"
+    "<b>Guruh qoidalari:</b>\n"
+    "• Rolingizni yoki shaxsiy chatdagi xabarlarni skrinshot qilib ko'rsatmang.\n"
+    "• Halok bo'lganingizdan keyin o'yin haqida yozmang.\n"
+    "• Tunda tanlov qilmagan va ovoz bermagan o'yinchi o'yindan chiqariladi.\n"
+    "• Haqorat va reklama taqiqlanadi.\n\n"
+    "<b>Buyumlar:</b>\n"
+    "/dokon — sotib olish, /sumka — yoqish/o'chirish, /buyumlar — har bir buyum nima qiladi.\n"
+    "Yoqilgan (✅) buyum o'yinda o'zi ishlaydi va faqat sizni qutqarganda sarflanadi.\n\n"
+    "/rollar — barcha rollar, /bonus — kunlik bonus, /help — barcha buyruqlar."
+)
+RULES_BTN_FULL = "📚 To'liq qo'llanma"
+RULES_BTN_ROLES = "🎭 Rollar"
+RULES_BTN_ITEMS = "🎒 Buyumlar"
+RULES_SENT_PM = "📩 Shaxsiy chatga yuborildi."
+RULES_PM_FAILED = "Avval botga shaxsiy chatda /start bosing, so'ng qayta urinib ko'ring."
+LOBBY_RULES_BUTTON = "📖 Qoidalar"
+
 # ---------- Bot buyruqlari menyusi ----------
 BOT_COMMANDS = {
     "mafia": "Yangi Mafiya o'yini boshlash (guruhda)",
@@ -874,6 +904,7 @@ BOT_COMMANDS = {
     "top1": "Kunlik reyting",
     "top7": "Haftalik reyting",
     "top30": "Oylik reyting",
+    "qoidalar": "Qoidalar va qisqa qo'llanma",
     "rollar": "Barcha rollar tavsifi",
     "sozlamalar": "Guruh sozlamalari (adminlar uchun)",
     "til": "Tilni tanlash / Выбор языка",

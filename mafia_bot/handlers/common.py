@@ -6,9 +6,11 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 import db
 import purchases
 import texts
+from config import GUIDE_URL
 from game.models import MAFIA_TEAM_ROLES, Role
 from game.settings import load_settings, save_settings
 from i18n import LANG_NAMES, LANGS, RU, UZ, get_texts, set_user_lang
+from utils import split_text
 
 router = Router(name="common")
 
@@ -78,6 +80,50 @@ def build_roles_text(L=texts) -> list[str]:
 async def cmd_roles(message: Message, L=texts) -> None:
     for text in build_roles_text(L):
         await message.answer(text)
+
+
+# ---------- Qo'llanma (/qoidalar) ----------
+
+
+def build_rules_keyboard(L=texts) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text=L.RULES_BTN_ROLES, callback_data="guide:roles"),
+            InlineKeyboardButton(text=L.RULES_BTN_ITEMS, callback_data="guide:items"),
+        ]
+    ]
+    if GUIDE_URL:
+        rows.insert(0, [InlineKeyboardButton(text=L.RULES_BTN_FULL, url=GUIDE_URL)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.message(Command("qoidalar", "rules"))
+async def cmd_rules(message: Message, L=texts) -> None:
+    await message.answer(L.RULES_TEXT, reply_markup=build_rules_keyboard(L))
+
+
+@router.callback_query(F.data.startswith("guide:"))
+async def on_guide(callback: CallbackQuery, bot: Bot, UL=texts) -> None:
+    """Guruhni to'ldirmaslik uchun qo'llanma bo'limlari bosgan odamning shaxsiy chatiga yuboriladi."""
+    from handlers.items import hero_card, item_card
+    from economy import ITEMS
+
+    section = callback.data.split(":", 1)[1]
+    if section == "roles":
+        parts = build_roles_text(UL)
+    elif section == "items":
+        cards = [UL.ITEMS_LIST_HEADER, *(item_card(key, UL) for key in ITEMS), hero_card(UL)]
+        parts = split_text("\n\n".join(cards))
+    else:
+        parts = [UL.RULES_TEXT]
+    try:
+        for i, text in enumerate(parts):
+            markup = build_rules_keyboard(UL) if section == "rules" and i == 0 else None
+            await bot.send_message(callback.from_user.id, text, reply_markup=markup)
+    except (TelegramBadRequest, TelegramForbiddenError):
+        await callback.answer(UL.RULES_PM_FAILED, show_alert=True)
+        return
+    await callback.answer(UL.RULES_SENT_PM if callback.message.chat.type != "private" else None)
 
 
 # ---------- Til tanlash (/til) ----------
