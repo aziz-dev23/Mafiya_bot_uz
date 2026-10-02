@@ -879,6 +879,7 @@ RULES_BTN_ITEMS = "🎒 Buyumlar"
 RULES_SENT_PM = "📩 Shaxsiy chatga yuborildi."
 RULES_PM_FAILED = "Avval botga shaxsiy chatda /start bosing, so'ng qayta urinib ko'ring."
 LOBBY_RULES_BUTTON = "📖 Qoidalar"
+MENU_RULES = "📖 Qoidalar va qo'llanma"
 
 # ---------- Bot buyruqlari menyusi ----------
 BOT_COMMANDS = {

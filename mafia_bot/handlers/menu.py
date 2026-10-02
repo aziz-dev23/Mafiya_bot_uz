@@ -25,6 +25,7 @@ def _with_back(kb: InlineKeyboardMarkup | None, L=texts) -> InlineKeyboardMarkup
 def build_main_menu_keyboard(bot_username: str, L=texts) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text=L.MENU_RULES, callback_data="guide:rules")],
             [
                 InlineKeyboardButton(
                     text=L.MENU_ADD_TO_GROUP,
